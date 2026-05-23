@@ -1,0 +1,28 @@
+{
+  "name": "doudizhu-online",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/client",
+    "apps/server",
+    "packages/shared"
+  ],
+  "scripts": {
+    "dev": "npm --workspace packages/shared run build && concurrently -n server,client -c green,cyan \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:client": "npm --workspace apps/client run dev",
+    "dev:server": "npm --workspace apps/server run dev",
+    "build": "npm --workspace packages/shared run build && npm --workspace apps/server run build && npm --workspace apps/client run build",
+    "test": "npm --workspace packages/shared run test && npm --workspace apps/server run test",
+    "typecheck": "npm --workspace packages/shared run build && npm --workspace apps/server run typecheck && npm --workspace apps/client run typecheck"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.17.9",
+    "concurrently": "^9.1.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}
