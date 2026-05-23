@@ -7,8 +7,7 @@ import {
   validatePlay
 } from "@doudizhu/shared";
 import type {
-  BidAction,
-  BidStage,
+  BidScore,
   Card,
   HandAnalysis,
   PlayerSeat,
@@ -32,13 +31,11 @@ interface InternalPlayer {
 }
 
 interface BidState {
-  stage: BidStage;
+  startSeat: PlayerSeat;
   currentSeat: PlayerSeat;
-  callerSeat?: PlayerSeat;
-  callPassedSeats: PlayerSeat[];
-  candidateSeat?: PlayerSeat;
-  robActedSeats: PlayerSeat[];
-  robCount: number;
+  actedSeats: PlayerSeat[];
+  highestScore: BidScore;
+  highestSeat?: PlayerSeat;
 }
 
 interface LastPlay {
@@ -58,6 +55,8 @@ export interface InternalRoom extends RoomState {
   lastPlay?: LastPlay;
   passCount: number;
   multiplier: number;
+  highestBidScore: BidScore;
+  highestBidSeat?: PlayerSeat;
   turnLog: PublicPlay[];
   result?: RoundResult;
   message?: string;
@@ -74,6 +73,10 @@ export class GameException extends Error {
 
 function nextSeat(seat: PlayerSeat): PlayerSeat {
   return ((seat + 1) % 3) as PlayerSeat;
+}
+
+function isBidScore(score: number): score is BidScore {
+  return score === 0 || score === 1 || score === 2 || score === 3;
 }
 
 function normalizeNickname(nickname: string): string {
@@ -106,6 +109,7 @@ export class RoomManager {
       bottomCards: [],
       passCount: 0,
       multiplier: 1,
+      highestBidScore: 0,
       turnLog: [],
       message: "房间已创建，等待另外两名玩家。"
     };
@@ -205,87 +209,64 @@ export class RoomManager {
     return room;
   }
 
-  chooseBid(socketId: string, action: BidAction): InternalRoom {
+  chooseBid(socketId: string, score: BidScore): InternalRoom {
     const room = this.requireRoomForSocket(socketId);
     const player = this.requirePlayer(room, socketId);
 
     if (room.phase !== "bidding" || !room.bid) {
-      throw new GameException("NOT_BIDDING", "当前不是叫地主阶段。");
+      throw new GameException("NOT_BIDDING", "当前不是叫分阶段。");
     }
 
     if (room.bid.currentSeat !== player.seat) {
       throw new GameException("NOT_YOUR_TURN", "还没轮到你操作。");
     }
 
-    if (room.bid.stage === "call") {
-      if (action !== "call" && action !== "pass") {
-        throw new GameException("INVALID_BID", "当前只能选择叫地主或不叫。");
-      }
-
-      if (action === "pass") {
-        room.bid.callPassedSeats = [...room.bid.callPassedSeats, player.seat];
-        player.lastAction = "不叫";
-        this.pushBid(room, player, "不叫");
-
-        if (room.bid.callPassedSeats.length >= 3) {
-          this.startDeal(room, "无人叫地主，已重新发牌。");
-          return room;
-        }
-
-        room.bid.currentSeat = nextSeat(player.seat);
-        room.message = "继续叫地主。";
-        return room;
-      }
-
-      room.bid.callerSeat = player.seat;
-      room.bid.candidateSeat = player.seat;
-      room.bid.stage = "rob";
-      room.bid.robActedSeats = [];
-      room.bid.robCount = 0;
-      player.lastAction = "叫地主";
-      this.pushBid(room, player, "叫地主");
-
-      const nextRobSeat = this.findNextRobSeat(room.bid, player.seat);
-      if (nextRobSeat === undefined) {
-        this.appointLandlord(room, player.seat);
-        return room;
-      }
-
-      room.bid.currentSeat = nextRobSeat;
-      room.message = "其他玩家可以选择抢地主。";
-
-      return room;
+    if (!isBidScore(score)) {
+      throw new GameException("INVALID_BID", "叫分只能是不叫、1分、2分或3分。");
     }
 
-    if (action !== "rob" && action !== "no_rob") {
-      throw new GameException("INVALID_BID", "当前只能选择抢地主或不抢。");
+    if (room.bid.actedSeats.includes(player.seat)) {
+      throw new GameException("BID_ALREADY_ACTED", "你已经在本轮叫分中操作过。");
     }
 
-    if (room.bid.robActedSeats.includes(player.seat)) {
-      throw new GameException("BID_ALREADY_ACTED", "你已经在抢地主阶段操作过。");
+    if (score > 0 && score <= room.bid.highestScore) {
+      throw new GameException("BID_TOO_LOW", "叫分必须大于当前最高分。");
     }
 
-    room.bid.robActedSeats = [...room.bid.robActedSeats, player.seat];
+    room.bid.actedSeats = [...room.bid.actedSeats, player.seat];
 
-    if (action === "rob") {
-      room.bid.candidateSeat = player.seat;
-      room.bid.robCount += 1;
-      room.multiplier *= 2;
-      player.lastAction = "抢地主";
-      this.pushBid(room, player, "抢地主");
+    if (score === 0) {
+      player.lastAction = "不叫";
+      this.pushBid(room, player, "不叫");
     } else {
-      player.lastAction = "不抢";
-      this.pushBid(room, player, "不抢");
+      room.bid.highestScore = score;
+      room.bid.highestSeat = player.seat;
+      room.highestBidScore = score;
+      room.highestBidSeat = player.seat;
+      player.lastAction = `${score}分`;
+      this.pushBid(room, player, `${score}分`);
     }
 
-    const nextRobSeat = this.findNextRobSeat(room.bid, player.seat);
-    if (nextRobSeat === undefined) {
-      this.appointLandlord(room, room.bid.candidateSeat ?? player.seat);
+    if (score === 3) {
+      this.appointLandlord(room, player.seat);
       return room;
     }
 
-    room.bid.currentSeat = nextRobSeat;
-    room.message = "继续抢地主。";
+    if (room.bid.actedSeats.length >= SEATS.length) {
+      if (room.bid.highestSeat === undefined) {
+        this.startDeal(room, "无人叫分，已重新发牌。");
+        return room;
+      }
+
+      this.appointLandlord(room, room.bid.highestSeat);
+      return room;
+    }
+
+    room.bid.currentSeat = nextSeat(player.seat);
+    room.message =
+      room.bid.highestSeat === undefined
+        ? "继续叫分。"
+        : `当前最高叫分 ${room.bid.highestScore} 分，继续叫分。`;
     return room;
   }
 
@@ -499,6 +480,8 @@ export class RoomManager {
     room.lastPlay = undefined;
     room.passCount = 0;
     room.multiplier = 1;
+    room.highestBidScore = 0;
+    room.highestBidSeat = undefined;
     room.result = undefined;
     room.message = "准备后开始下一局。";
     room.turnLog = [];
@@ -512,7 +495,8 @@ export class RoomManager {
     }
   }
 
-  private startDeal(room: InternalRoom, message = "牌局开始，开始叫地主。"): void {
+  private startDeal(room: InternalRoom, message = "牌局开始，开始叫分。"): void {
+    const firstBidSeat = this.randomSeat();
     const deck = shuffleDeck(createDeck(), this.rng);
     const { hands, bottomCards } = dealCards(deck);
 
@@ -528,19 +512,24 @@ export class RoomManager {
     room.landlordSeat = undefined;
     room.currentTurn = undefined;
     room.bid = {
-      stage: "call",
-      currentSeat: 0,
-      callPassedSeats: [],
-      robActedSeats: [],
-      robCount: 0
+      startSeat: firstBidSeat,
+      currentSeat: firstBidSeat,
+      actedSeats: [],
+      highestScore: 0
     };
     room.lastPlay = undefined;
     room.passCount = 0;
     room.multiplier = 1;
+    room.highestBidScore = 0;
+    room.highestBidSeat = undefined;
     room.result = undefined;
     room.message = message;
     room.turnLog = [];
     this.pushSystem(room, message);
+  }
+
+  private randomSeat(): PlayerSeat {
+    return Math.floor(this.rng() * SEATS.length) as PlayerSeat;
   }
 
   private appointLandlord(room: InternalRoom, landlordSeat: PlayerSeat): void {
@@ -555,24 +544,6 @@ export class RoomManager {
     room.passCount = 0;
     room.message = `${landlord.nickname} 成为地主，开始出牌。`;
     this.pushSystem(room, room.message);
-  }
-
-  private findNextRobSeat(bid: BidState, fromSeat: PlayerSeat): PlayerSeat | undefined {
-    for (let offset = 1; offset <= SEATS.length; offset += 1) {
-      const seat = ((fromSeat + offset) % SEATS.length) as PlayerSeat;
-
-      if (bid.callPassedSeats.includes(seat) || bid.robActedSeats.includes(seat)) {
-        continue;
-      }
-
-      if (bid.robCount === 0 && seat === bid.callerSeat) {
-        continue;
-      }
-
-      return seat;
-    }
-
-    return undefined;
   }
 
   private finishRound(room: InternalRoom, winnerSeat: PlayerSeat): RoundResult {
@@ -617,8 +588,9 @@ export class RoomManager {
       bottomCards: revealBottomCards ? room.bottomCards : [],
       hiddenBottomCount: revealBottomCards ? 0 : room.bottomCards.length || 3,
       multiplier: room.multiplier,
-      bidStage: room.bid?.stage,
       bidCurrentSeat: room.bid?.currentSeat,
+      highestBidScore: room.highestBidScore,
+      highestBidSeat: room.highestBidSeat,
       lastPlay: room.lastPlay?.publicPlay,
       turnLog: room.turnLog.slice(-10),
       result: room.result,

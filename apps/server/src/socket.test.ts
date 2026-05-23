@@ -3,7 +3,7 @@ import { io as createClient } from "socket.io-client";
 import type { AddressInfo } from "node:net";
 import type { Server as HttpServer } from "node:http";
 import type { Socket } from "socket.io-client";
-import type { ClientToServerEvents, RoomView, ServerToClientEvents } from "@doudizhu/shared";
+import type { ClientToServerEvents, PlayerSeat, RoomView, ServerToClientEvents } from "@doudizhu/shared";
 import { createGameServer } from "./createGameServer.js";
 
 type ClientSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -89,16 +89,40 @@ describe("socket game flow", () => {
     a.emit("game:ready");
     b.emit("game:ready");
     c.emit("game:ready");
-    expect((await biddingState).phase).toBe("bidding");
+    let state = await biddingState;
+    expect(state.phase).toBe("bidding");
 
-    const playingState = waitForStateWhere(a, (roomView) => roomView.phase === "playing");
-    a.emit("bid:choose", { action: "call" });
-    b.emit("bid:choose", { action: "no_rob" });
-    c.emit("bid:choose", { action: "no_rob" });
+    const socketsBySeat: Record<PlayerSeat, ClientSocket> = { 0: a, 1: b, 2: c };
+    const firstBidSeat = state.currentTurn;
+    if (firstBidSeat === undefined) {
+      throw new Error("Missing first bid seat");
+    }
 
-    const view = await playingState;
+    let nextState = waitForState(a);
+    socketsBySeat[firstBidSeat].emit("bid:choose", { score: 1 });
+    state = await nextState;
+
+    const highestBidSeat = state.currentTurn;
+    if (highestBidSeat === undefined) {
+      throw new Error("Missing second bid seat");
+    }
+
+    nextState = waitForState(a);
+    socketsBySeat[highestBidSeat].emit("bid:choose", { score: 2 });
+    state = await nextState;
+
+    const finalBidSeat = state.currentTurn;
+    if (finalBidSeat === undefined) {
+      throw new Error("Missing final bid seat");
+    }
+
+    nextState = waitForState(a);
+    socketsBySeat[finalBidSeat].emit("bid:choose", { score: 0 });
+    state = await nextState;
+
+    const view = state;
     expect(view.phase).toBe("playing");
-    expect(view.landlordSeat).toBe(0);
-    expect(view.players.find((player) => player.seat === 0)?.cardCount).toBe(20);
+    expect(view.landlordSeat).toBe(highestBidSeat);
+    expect(view.players.find((player) => player.seat === highestBidSeat)?.cardCount).toBe(20);
   });
 });

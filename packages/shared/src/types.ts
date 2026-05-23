@@ -31,7 +31,7 @@ export type PlayerSeat = 0 | 1 | 2;
 
 export type GamePhase = "lobby" | "bidding" | "playing" | "ended";
 
-export type BidAction = "call" | "pass" | "rob" | "no_rob";
+export type BidScore = 0 | 1 | 2 | 3;
 
 export type PlayAction = "play" | "pass";
 
@@ -84,8 +84,6 @@ export interface PublicPlay {
   at: number;
 }
 
-export type BidStage = "call" | "rob";
-
 export type SeatScores = Record<PlayerSeat, number>;
 
 export interface RoundResult {
@@ -104,8 +102,9 @@ export interface RoomView extends RoomState {
   bottomCards: Card[];
   hiddenBottomCount: number;
   multiplier: number;
-  bidStage?: BidStage;
   bidCurrentSeat?: PlayerSeat;
+  highestBidScore: BidScore;
+  highestBidSeat?: PlayerSeat;
   lastPlay?: PublicPlay;
   turnLog: PublicPlay[];
   result?: RoundResult;
@@ -122,7 +121,7 @@ export interface ClientToServerEvents {
   "room:join": (payload: { roomCode: string; nickname: string }) => void;
   "room:leave": () => void;
   "game:ready": () => void;
-  "bid:choose": (payload: { action: BidAction }) => void;
+  "bid:choose": (payload: { score: BidScore }) => void;
   "play:cards": (payload: { cardIds: string[] }) => void;
   "play:pass": () => void;
 }

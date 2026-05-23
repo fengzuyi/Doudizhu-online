@@ -86,7 +86,7 @@ export function createGameServer() {
 
     socket.on("bid:choose", (payload) => {
       try {
-        emitRoom(roomManager.chooseBid(socket.id, payload.action));
+        emitRoom(roomManager.chooseBid(socket.id, payload.score));
       } catch (error) {
         handleError(socket.id, error);
       }

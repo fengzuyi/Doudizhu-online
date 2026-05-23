@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { CircleSlash, Clipboard, Crown, LogOut, Play, Send, Users } from "lucide-react";
-import type { BidAction, Card, PlayerSeat, PlayerView, RoomView, RoundResult } from "@doudizhu/shared";
+import type { BidScore, Card, PlayerSeat, PlayerView, RoomView, RoundResult } from "@doudizhu/shared";
 import { socket } from "./socket.js";
 
 const SEATS = [0, 1, 2] as const satisfies PlayerSeat[];
@@ -33,7 +33,7 @@ function getPhaseLabel(room: RoomView | null): string {
 
   const labels: Record<RoomView["phase"], string> = {
     lobby: "准备中",
-    bidding: room.bidStage === "call" ? "叫地主" : "抢地主",
+    bidding: "叫分中",
     playing: "出牌中",
     ended: "已结算"
   };
@@ -146,8 +146,8 @@ export default function App() {
     socket.emit("room:join", { roomCode, nickname: name });
   }
 
-  function chooseBid(action: BidAction) {
-    socket.emit("bid:choose", { action });
+  function chooseBid(score: BidScore) {
+    socket.emit("bid:choose", { score });
   }
 
   function toggleCard(cardId: string) {
@@ -246,6 +246,7 @@ export default function App() {
             <Clipboard size={18} aria-hidden="true" />
           </button>
           <span className="phase-pill">{getPhaseLabel(room)}</span>
+          <span className="phase-pill">最高 {room.highestBidScore > 0 ? `${room.highestBidScore}分` : "未叫"}</span>
           <span className="phase-pill strong">倍数 x{room.multiplier}</span>
         </div>
         <div className="header-actions">
@@ -415,7 +416,7 @@ function ActionBar({
   selectedCount: number;
   canPass: boolean;
   onReady: () => void;
-  onBid: (action: BidAction) => void;
+  onBid: (score: BidScore) => void;
   onPlay: () => void;
   onPass: () => void;
   onClear: () => void;
@@ -436,27 +437,24 @@ function ActionBar({
       return <div className="waiting-text">等待玩家操作</div>;
     }
 
-    return room.bidStage === "call" ? (
+    return (
       <div className="actions">
-        <button className="primary-btn" type="button" onClick={() => onBid("call")}>
-          <Crown size={18} aria-hidden="true" />
-          叫地主
-        </button>
-        <button type="button" onClick={() => onBid("pass")}>
+        <button type="button" onClick={() => onBid(0)}>
           <CircleSlash size={18} aria-hidden="true" />
           不叫
         </button>
-      </div>
-    ) : (
-      <div className="actions">
-        <button className="primary-btn" type="button" onClick={() => onBid("rob")}>
-          <Crown size={18} aria-hidden="true" />
-          抢地主
-        </button>
-        <button type="button" onClick={() => onBid("no_rob")}>
-          <CircleSlash size={18} aria-hidden="true" />
-          不抢
-        </button>
+        {[1, 2, 3].map((score) => (
+          <button
+            className={score === 3 ? "primary-btn" : ""}
+            type="button"
+            key={score}
+            onClick={() => onBid(score as BidScore)}
+            disabled={score <= room.highestBidScore}
+          >
+            <Crown size={18} aria-hidden="true" />
+            {score}分
+          </button>
+        ))}
       </div>
     );
   }
