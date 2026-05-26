@@ -8,3 +8,4 @@ apps/server/data/
 .env.*
 PROJECT_PLAN.md
 炸金花规则设计文档.md
+DEPLOYMENT.md

@@ -19,6 +19,21 @@ function getBearerToken(header: string | undefined) {
 const CHAT_ROOM = "hall-chat";
 const MAX_CHAT_MESSAGES = 50;
 const MAX_CHAT_TEXT_LENGTH = 120;
+const DEFAULT_CLIENT_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
+
+function getClientOrigins() {
+  const raw = process.env.CLIENT_ORIGIN ?? process.env.CORS_ORIGIN;
+  if (!raw) {
+    return DEFAULT_CLIENT_ORIGINS;
+  }
+
+  const origins = raw
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  return origins.length > 0 ? origins : DEFAULT_CLIENT_ORIGINS;
+}
 
 export function createGameServer() {
   return createGameServerWithOptions();
@@ -27,9 +42,10 @@ export function createGameServer() {
 export function createGameServerWithOptions(options: { authStorePath?: string | null } = {}) {
   const app = express();
   const httpServer = createServer(app);
+  const clientOrigins = getClientOrigins();
   const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
     cors: {
-      origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
+      origin: clientOrigins,
       methods: ["GET", "POST"]
     }
   });
@@ -38,7 +54,7 @@ export function createGameServerWithOptions(options: { authStorePath?: string | 
   const chatMessages: ChatMessage[] = [];
   const chatSessions = new Map<string, { account: string; nickname: string }>();
 
-  app.use(cors());
+  app.use(cors({ origin: clientOrigins }));
   app.use(express.json());
   app.get("/health", (_request, response) => {
     response.json({ ok: true });
