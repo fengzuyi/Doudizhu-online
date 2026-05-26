@@ -2,8 +2,30 @@ import { useEffect, useMemo, useState } from "react";
 import { CircleSlash, Clipboard, Crown, LogOut, Play, Send, Users } from "lucide-react";
 import type { BidScore, Card, PlayerSeat, PlayerView, RoomView, RoundResult } from "@doudizhu/shared";
 import { socket } from "./socket.js";
+import { GameHall } from "./pages/GameHall.js";
+import { LoginPage, type AuthProfile } from "./pages/LoginPage.js";
 
-const SEATS = [0, 1, 2] as const satisfies PlayerSeat[];
+const AUTH_STORAGE_KEY = "doudizhu:authProfile";
+
+type ActiveView = "login" | "hall" | "doudizhu";
+
+function readStoredAuth(): AuthProfile | null {
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw) as Partial<AuthProfile>;
+    if (!parsed.nickname || (parsed.mode !== "account" && parsed.mode !== "guest")) {
+      return null;
+    }
+
+    return { nickname: parsed.nickname, mode: parsed.mode };
+  } catch {
+    return null;
+  }
+}
 
 function seatName(seat: PlayerSeat, selfSeat?: PlayerSeat): string {
   if (seat === selfSeat) {
@@ -43,6 +65,8 @@ function getPhaseLabel(room: RoomView | null): string {
 
 export default function App() {
   const [connected, setConnected] = useState(socket.connected);
+  const [authProfile, setAuthProfile] = useState<AuthProfile | null>(() => readStoredAuth());
+  const [activeView, setActiveView] = useState<ActiveView>(() => (readStoredAuth() ? "hall" : "login"));
   const [nickname, setNickname] = useState(() => localStorage.getItem("doudizhu:nickname") ?? "");
   const [roomCodeInput, setRoomCodeInput] = useState("");
   const [room, setRoom] = useState<RoomView | null>(null);
@@ -60,32 +84,39 @@ export default function App() {
       setToast("连接已断开。");
     }
 
-    socket.on("connect", onConnect);
-    socket.on("disconnect", onDisconnect);
-    socket.on("room:state", ({ roomView }) => {
+    function onRoomState({ roomView }: { roomView: RoomView }) {
       setRoom(roomView);
+      setActiveView("doudizhu");
       setSelectedIds(new Set());
       if (roomView.phase !== "ended") {
         setEndedNotice("");
       }
-    });
-    socket.on("game:error", ({ message }) => {
+    }
+
+    function onGameError({ message }: { message: string }) {
       setToast(message);
-    });
-    socket.on("game:ended", ({ result, message }) => {
+    }
+
+    function onGameEnded({ result, message }: { result?: RoundResult; message?: string }) {
       if (message) {
         setEndedNotice(message);
       } else if (result) {
         setEndedNotice(result.landlordWon ? "地主获胜" : "农民获胜");
       }
-    });
+    }
+
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    socket.on("room:state", onRoomState);
+    socket.on("game:error", onGameError);
+    socket.on("game:ended", onGameEnded);
 
     return () => {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
-      socket.off("room:state");
-      socket.off("game:error");
-      socket.off("game:ended");
+      socket.off("room:state", onRoomState);
+      socket.off("game:error", onGameError);
+      socket.off("game:ended", onGameEnded);
     };
   }, []);
 
@@ -98,12 +129,10 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const self = useMemo(
-    () => room?.players.find((player) => player.seat === room.selfSeat),
-    [room]
-  );
+  const self = useMemo(() => room?.players.find((player) => player.seat === room.selfSeat), [room]);
   const selfHand = self?.hand ?? [];
   const selectedCards = selfHand.filter((card) => selectedIds.has(card.id));
+  const activeSeat = room?.phase === "bidding" ? room.bidCurrentSeat ?? room.currentTurn : room?.currentTurn;
   const opponents = useMemo(() => {
     if (!room || room.selfSeat === undefined) {
       return room?.players.filter((player) => player.seat !== room?.selfSeat) ?? [];
@@ -114,6 +143,66 @@ export default function App() {
       .filter((player): player is PlayerView => Boolean(player));
   }, [room]);
   const waitingOpponentSlots = Math.max(0, 2 - opponents.length);
+
+  function completeLogin(profile: AuthProfile) {
+    const cleanProfile = { ...profile, nickname: profile.nickname.trim() };
+    setAuthProfile(cleanProfile);
+    setActiveView("hall");
+    setNickname(cleanProfile.nickname);
+    localStorage.setItem("doudizhu:nickname", cleanProfile.nickname);
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(cleanProfile));
+    setToast("");
+  }
+
+  function loginWithAccount(account: string) {
+    const trimmed = account.trim();
+    if (!trimmed) {
+      setToast("请输入手机号 / 游戏账号。");
+      return;
+    }
+
+    completeLogin({ nickname: trimmed, mode: "account" });
+  }
+
+  function loginAsGuest() {
+    const guestName = `游客${Math.floor(1000 + Math.random() * 9000)}`;
+    completeLogin({ nickname: guestName, mode: "guest" });
+  }
+
+  function logout() {
+    if (room) {
+      socket.emit("room:leave");
+    }
+
+    setAuthProfile(null);
+    setActiveView("login");
+    setRoom(null);
+    setSelectedIds(new Set());
+    setRoomCodeInput("");
+    setNickname("");
+    setEndedNotice("");
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    localStorage.removeItem("doudizhu:nickname");
+    setToast("已退出登录。");
+  }
+
+  function backToHall() {
+    if (room) {
+      socket.emit("room:leave");
+    }
+
+    setRoom(null);
+    setSelectedIds(new Set());
+    setEndedNotice("");
+    setActiveView("hall");
+  }
+
+  function leaveRoom() {
+    socket.emit("room:leave");
+    setRoom(null);
+    setSelectedIds(new Set());
+    setEndedNotice("");
+  }
 
   function ensureNickname(): string | null {
     const trimmed = nickname.trim();
@@ -178,30 +267,69 @@ export default function App() {
       .catch(() => setToast("复制失败，请手动选择房间号。"));
   }
 
+  if (!authProfile || activeView === "login") {
+    return (
+      <>
+        <LoginPage
+          connected={connected}
+          initialAccount={nickname}
+          onLogin={loginWithAccount}
+          onGuestLogin={loginAsGuest}
+          onInfo={setToast}
+        />
+        <Toast message={toast} />
+      </>
+    );
+  }
+
+  if (activeView === "hall") {
+    return (
+      <>
+        <GameHall
+          profile={authProfile}
+          connected={connected}
+          roomCodeInput={roomCodeInput}
+          onRoomCodeInputChange={setRoomCodeInput}
+          onCreateDoudizhuRoom={createRoom}
+          onJoinDoudizhuRoom={joinRoom}
+          onUnavailable={(gameName) => setToast(`${gameName} 敬请期待。`)}
+          onInfo={setToast}
+          onLogout={logout}
+        />
+        <Toast message={toast} />
+      </>
+    );
+  }
+
   if (!room) {
     return (
       <div className="app-shell">
         <header className="topbar">
           <div>
             <p className="eyebrow">Dou Dizhu Online</p>
-            <h1>在线斗地主</h1>
+            <h1>斗地主房间入口</h1>
           </div>
-          <ConnectionPill connected={connected} />
+          <div className="header-actions">
+            <ConnectionPill connected={connected} />
+            <button className="ghost-btn" type="button" onClick={backToHall}>
+              返回大厅
+            </button>
+          </div>
         </header>
 
         <main className="lobby-panel">
           <section className="brand-panel">
             <div className="table-preview" aria-hidden="true">
               <div className="brand-mark">
-                <Crown size={36} />
+                <Crown size={36} aria-hidden="true" />
               </div>
               <div className="preview-card preview-card-left">A</div>
               <div className="preview-card preview-card-main">王</div>
               <div className="preview-card preview-card-right">2</div>
             </div>
             <h2>三人真人房</h2>
-            <p>创建房间，三名玩家准备后直接开局</p>
-            <div className="feature-strip" aria-label="游戏特性">
+            <p>创建房间，三名玩家准备后进入轮流叫分和出牌流程。</p>
+            <div className="feature-strip" aria-label="游戏特色">
               <span>54 张牌</span>
               <span>轮流叫分</span>
               <span>服务端判定</span>
@@ -210,8 +338,8 @@ export default function App() {
 
           <section className="entry-panel" aria-label="进入房间">
             <div className="panel-heading">
-              <p className="eyebrow">快速入座</p>
-              <h2>开始一局斗地主</h2>
+              <p className="eyebrow">好友房</p>
+              <h2>创建或加入房间</h2>
             </div>
             <label>
               昵称
@@ -219,7 +347,7 @@ export default function App() {
                 value={nickname}
                 maxLength={16}
                 onChange={(event) => setNickname(event.target.value)}
-                placeholder="例如：阿明"
+                placeholder="例如：阿星"
               />
             </label>
             <button className="primary-btn" type="button" onClick={createRoom}>
@@ -249,7 +377,7 @@ export default function App() {
     );
   }
 
-  const isMyTurn = room.currentTurn === room.selfSeat;
+  const isMyTurn = activeSeat === room.selfSeat;
   const canPass = Boolean(room.lastPlay?.seat !== undefined && room.lastPlay.seat !== room.selfSeat);
 
   return (
@@ -275,7 +403,7 @@ export default function App() {
         </div>
         <div className="header-actions">
           <ConnectionPill connected={connected} />
-          <button className="ghost-btn" type="button" onClick={() => socket.emit("room:leave")}>
+          <button className="ghost-btn" type="button" onClick={leaveRoom}>
             <LogOut size={18} aria-hidden="true" />
             离开
           </button>
@@ -291,7 +419,7 @@ export default function App() {
               key={player.seat}
               player={player}
               label={seatName(player.seat, room.selfSeat)}
-              active={room.currentTurn === player.seat}
+              active={activeSeat === player.seat}
               result={room.result}
             />
           ))}
@@ -314,7 +442,9 @@ export default function App() {
             <span>上一手</span>
             {room.lastPlay ? (
               <>
-                <strong>{room.lastPlay.nickname} · {room.lastPlay.label}</strong>
+                <strong>
+                  {room.lastPlay.nickname} · {room.lastPlay.label}
+                </strong>
                 <div className="mini-card-row">
                   {room.lastPlay.cards?.map((card) => <CardView key={card.id} card={card} compact />)}
                 </div>
@@ -413,6 +543,8 @@ function SeatPanel({
   result?: RoundResult;
   compact?: boolean;
 }) {
+  const score = result?.scores[player.seat] ?? 0;
+
   return (
     <article
       className={`seat-panel ${active ? "active" : ""} ${compact ? "compact" : ""} ${player.isLandlord ? "landlord" : ""} ${
@@ -432,7 +564,7 @@ function SeatPanel({
       <div className="seat-stats">
         <span>{player.cardCount} 张</span>
         <span>{player.connected ? "在线" : "离线"}</span>
-        {result && <span className={result.scores[player.seat] >= 0 ? "score plus" : "score minus"}>{formatScore(result, player.seat)}</span>}
+        {result && <span className={score >= 0 ? "score plus" : "score minus"}>{formatScore(result, player.seat)}</span>}
       </div>
       {player.lastAction && <p>{player.lastAction}</p>}
     </article>
@@ -606,5 +738,9 @@ function ResultDialog({ room, notice }: { room: RoomView; notice: string }) {
 }
 
 function Toast({ message }: { message: string }) {
-  return message ? <div className="toast" role="status">{message}</div> : null;
+  return message ? (
+    <div className="toast" role="status">
+      {message}
+    </div>
+  ) : null;
 }

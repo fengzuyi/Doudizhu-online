@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>简约朋友局棋牌游戏大厅</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      color: #20313a;
+      background: #eaf7f0;
+    }
+
+    button,
+    input {
+      font-family: inherit;
+    }
+
+    .hall-page {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      min-width: 1120px;
+      min-height: 660px;
+      overflow: hidden;
+      padding: 28px 36px;
+      background: linear-gradient(135deg, #eaf7f0 0%, #f8f1e2 58%, #dceef2 100%);
+    }
+
+    .bg-glow {
+      position: absolute;
+      border-radius: 999px;
+      pointer-events: none;
+      filter: blur(2px);
+    }
+
+    .glow-1 {
+      width: 420px;
+      height: 420px;
+      left: -120px;
+      top: -120px;
+      background: rgba(191, 232, 212, 0.48);
+    }
+
+    .glow-2 {
+      width: 440px;
+      height: 440px;
+      right: -130px;
+      top: 60px;
+      background: rgba(183, 219, 232, 0.32);
+    }
+
+    .glow-3 {
+      width: 480px;
+      height: 260px;
+      left: 360px;
+      bottom: -120px;
+      background: rgba(244, 221, 184, 0.34);
+    }
+
+    .floating-symbol {
+      position: absolute;
+      width: 48px;
+      height: 56px;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.28);
+      border: 1px solid rgba(255, 255, 255, 0.48);
+      font-size: 20px;
+      color: #8baa9b;
+      user-select: none;
+    }
+
+    .symbol-1 { left: 82px; top: 180px; transform: rotate(12deg); }
+    .symbol-2 { right: 150px; top: 150px; transform: rotate(-10deg); color: #c9997a; }
+    .symbol-3 { right: 420px; bottom: 86px; transform: rotate(-8deg); color: #c9997a; }
+
+    .app {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-rows: 80px 1fr;
+      gap: 22px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      border-radius: 30px;
+      background: rgba(255, 255, 255, 0.54);
+      border: 1px solid rgba(255, 255, 255, 0.76);
+      box-shadow: 0 16px 34px rgba(80, 108, 99, 0.11);
+      backdrop-filter: blur(16px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-logo {
+      width: 50px;
+      height: 50px;
+      border-radius: 19px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #65b89a;
+      color: #ffffff;
+      font-size: 23px;
+      box-shadow: 0 10px 22px rgba(101, 184, 154, 0.28);
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.1;
+      letter-spacing: -0.5px;
+    }
+
+    .brand p {
+      margin: 5px 0 0;
+      color: #65747a;
+      font-size: 13px;
+    }
+
+    .top-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .user-chip {
+      height: 46px;
+      padding: 0 16px 0 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.68);
+      border: 1px solid rgba(221, 235, 229, 0.92);
+    }
+
+    .small-avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #65b89a;
+      color: #ffffff;
+      font-weight: 800;
+    }
+
+    .user-chip strong {
+      font-size: 14px;
+    }
+
+    .icon-btn {
+      width: 44px;
+      height: 44px;
+      border: none;
+      border-radius: 17px;
+      background: rgba(255, 255, 255, 0.68);
+      color: #5c716d;
+      font-size: 17px;
+      cursor: pointer;
+      border: 1px solid rgba(221, 235, 229, 0.9);
+    }
+
+    .main {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 280px 1fr 300px;
+      gap: 22px;
+    }
+
+    .panel {
+      min-height: 0;
+      border-radius: 32px;
+      background: rgba(255, 255, 255, 0.58);
+      border: 1px solid rgba(255, 255, 255, 0.78);
+      box-shadow: 0 16px 34px rgba(80, 108, 99, 0.11);
+      backdrop-filter: blur(16px);
+    }
+
+    .left-panel {
+      padding: 22px;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 18px;
+    }
+
+    .profile-card {
+      padding: 18px;
+      border-radius: 26px;
+      background: rgba(247, 251, 248, 0.88);
+      border: 1px solid #ddebe5;
+    }
+
+    .profile-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .avatar {
+      width: 64px;
+      height: 64px;
+      border-radius: 24px;
+      background: linear-gradient(145deg, #65b89a, #9edbc1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 30px;
+      color: #ffffff;
+      box-shadow: 0 12px 24px rgba(101, 184, 154, 0.24);
+      flex: 0 0 auto;
+    }
+
+    .profile-card h2 {
+      margin: 0 0 6px;
+      font-size: 20px;
+      line-height: 1.1;
+    }
+
+    .profile-card p {
+      margin: 0;
+      color: #728088;
+      font-size: 13px;
+    }
+
+    .room-card {
+      padding: 18px;
+      border-radius: 26px;
+      background: rgba(255, 248, 238, 0.82);
+      border: 1px solid #ebdcc7;
+    }
+
+    .room-card h3,
+    .friends-card h3 {
+      margin: 0 0 14px;
+      font-size: 17px;
+    }
+
+    .primary-btn,
+    .secondary-btn {
+      width: 100%;
+      height: 46px;
+      border-radius: 18px;
+      border: none;
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .primary-btn {
+      background: #65b89a;
+      color: #ffffff;
+      box-shadow: 0 10px 22px rgba(101, 184, 154, 0.26);
+    }
+
+    .secondary-btn {
+      margin-top: 10px;
+      background: rgba(255, 255, 255, 0.72);
+      color: #5d756e;
+      border: 1px solid rgba(221, 235, 229, 0.96);
+    }
+
+    .room-input {
+      width: 100%;
+      height: 46px;
+      margin-top: 12px;
+      padding: 0 14px;
+      border: 1px solid #ddebe5;
+      border-radius: 18px;
+      outline: none;
+      color: #20313a;
+      background: rgba(255, 255, 255, 0.74);
+      font-size: 14px;
+    }
+
+    .room-input:focus {
+      border-color: #65b89a;
+      box-shadow: 0 0 0 4px rgba(101, 184, 154, 0.14);
+    }
+
+    .friends-card {
+      min-height: 0;
+      padding: 18px;
+      border-radius: 26px;
+      background: rgba(247, 251, 248, 0.86);
+      border: 1px solid #ddebe5;
+    }
+
+    .friend-list {
+      display: grid;
+      gap: 11px;
+    }
+
+    .friend {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .friend-main {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .friend-avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(101, 184, 154, 0.16);
+      color: #4d8d78;
+      font-weight: 800;
+      flex: 0 0 auto;
+    }
+
+    .friend-name {
+      font-size: 14px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .friend-status {
+      color: #728088;
+      font-size: 12px;
+    }
+
+    .invite-btn {
+      height: 30px;
+      padding: 0 10px;
+      border: none;
+      border-radius: 999px;
+      background: #eef9f3;
+      color: #4d8d78;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .center-panel {
+      padding: 24px;
+      display: grid;
+      grid-template-rows: 150px auto 1fr;
+      gap: 18px;
+    }
+
+    .welcome {
+      position: relative;
+      padding: 26px 30px;
+      border-radius: 30px;
+      overflow: hidden;
+      background: linear-gradient(135deg, rgba(101, 184, 154, 0.94), rgba(157, 219, 193, 0.86));
+      color: #ffffff;
+      box-shadow: 0 16px 30px rgba(101, 184, 154, 0.2);
+    }
+
+    .welcome h2 {
+      margin: 0;
+      font-size: 30px;
+      line-height: 1.08;
+      letter-spacing: -0.8px;
+    }
+
+    .welcome p {
+      width: 460px;
+      max-width: 64%;
+      margin: 10px 0 0;
+      color: rgba(255, 255, 255, 0.92);
+      font-size: 15px;
+      line-height: 1.45;
+    }
+
+    .table-art {
+      position: absolute;
+      right: 42px;
+      top: 27px;
+      width: 174px;
+      height: 102px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.24);
+      border: 1px solid rgba(255, 255, 255, 0.36);
+    }
+
+    .table-art::before {
+      content: "";
+      position: absolute;
+      left: 30px;
+      top: 20px;
+      width: 114px;
+      height: 62px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.22);
+    }
+
+    .mini-card {
+      position: absolute;
+      width: 46px;
+      height: 64px;
+      border-radius: 12px;
+      background: #fffffb;
+      border: 1px solid rgba(230, 215, 197, 0.8);
+      color: #526b8d;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-start;
+      padding: 9px;
+      font-weight: 900;
+      box-shadow: 0 8px 18px rgba(60, 110, 95, 0.16);
+    }
+
+    .mini-card.a { right: 138px; top: 18px; transform: rotate(-12deg); }
+    .mini-card.k { right: 92px; top: 12px; color: #c06b68; transform: rotate(2deg); }
+    .mini-card.q { right: 46px; top: 20px; transform: rotate(13deg); }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 4px;
+    }
+
+    .section-head h3 {
+      margin: 0;
+      font-size: 22px;
+    }
+
+    .section-head span {
+      color: #728088;
+      font-size: 14px;
+    }
+
+    .game-grid {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .game-card {
+      position: relative;
+      padding: 22px;
+      border-radius: 30px;
+      background: rgba(255, 255, 255, 0.68);
+      border: 1px solid rgba(255, 255, 255, 0.84);
+      box-shadow: 0 12px 22px rgba(80, 108, 99, 0.08);
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .game-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 16px 28px rgba(80, 108, 99, 0.13);
+    }
+
+    .game-icon {
+      width: 58px;
+      height: 58px;
+      border-radius: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #eef9f3;
+      color: #4b826f;
+      font-size: 27px;
+    }
+
+    .game-card:nth-child(2n) .game-icon {
+      background: #fff8ee;
+      color: #8a684a;
+    }
+
+    .game-card h4 {
+      margin: 18px 0 7px;
+      font-size: 22px;
+      line-height: 1.1;
+    }
+
+    .game-card p {
+      margin: 0;
+      color: #728088;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .game-action {
+      position: absolute;
+      right: 20px;
+      bottom: 20px;
+      height: 36px;
+      padding: 0 14px;
+      border: none;
+      border-radius: 999px;
+      background: rgba(101, 184, 154, 0.14);
+      color: #4d8d78;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .right-panel {
+      padding: 22px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 18px;
+    }
+
+    .current-room {
+      padding: 20px;
+      border-radius: 28px;
+      background: rgba(247, 244, 236, 0.78);
+      border: 1px solid #eee3d0;
+    }
+
+    .current-room h3 {
+      margin: 0 0 10px;
+      font-size: 18px;
+    }
+
+    .room-number {
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.62);
+      color: #6a5a45;
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: 2px;
+    }
+
+    .current-room p {
+      margin: 12px 0 0;
+      color: #7e7567;
+      font-size: 13px;
+      line-height: 1.42;
+    }
+
+    .chat-card {
+      min-height: 0;
+      padding: 20px;
+      border-radius: 28px;
+      background: rgba(247, 251, 248, 0.88);
+      border: 1px solid #ddebe5;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 14px;
+    }
+
+    .chat-card h3 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .messages {
+      display: grid;
+      align-content: start;
+      gap: 10px;
+    }
+
+    .message {
+      padding: 11px 13px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.68);
+      color: #65747a;
+      font-size: 13px;
+      line-height: 1.38;
+    }
+
+    .message strong {
+      color: #20313a;
+    }
+
+    .chat-input {
+      display: grid;
+      grid-template-columns: 1fr 42px;
+      gap: 8px;
+    }
+
+    .chat-input input {
+      height: 42px;
+      border: 1px solid #ddebe5;
+      border-radius: 16px;
+      padding: 0 12px;
+      outline: none;
+      background: rgba(255, 255, 255, 0.74);
+    }
+
+    .chat-input button {
+      height: 42px;
+      border: none;
+      border-radius: 16px;
+      background: #65b89a;
+      color: #ffffff;
+      cursor: pointer;
+    }
+
+    @media (max-height: 740px) {
+      .hall-page {
+        padding: 18px 26px;
+      }
+
+      .app {
+        grid-template-rows: 72px 1fr;
+        gap: 14px;
+      }
+
+      .topbar {
+        border-radius: 26px;
+      }
+
+      .main {
+        gap: 14px;
+      }
+
+      .left-panel,
+      .center-panel,
+      .right-panel {
+        padding: 16px;
+        border-radius: 26px;
+      }
+
+      .center-panel {
+        grid-template-rows: 126px auto 1fr;
+        gap: 12px;
+      }
+
+      .welcome {
+        padding: 20px 24px;
+      }
+
+      .welcome h2 {
+        font-size: 26px;
+      }
+
+      .game-card {
+        padding: 17px;
+        border-radius: 24px;
+      }
+
+      .game-icon {
+        width: 50px;
+        height: 50px;
+      }
+
+      .game-card h4 {
+        margin-top: 12px;
+        font-size: 19px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="hall-page">
+    <div class="bg-glow glow-1"></div>
+    <div class="bg-glow glow-2"></div>
+    <div class="bg-glow glow-3"></div>
+
+    <div class="floating-symbol symbol-1">♣</div>
+    <div class="floating-symbol symbol-2">♦</div>
+    <div class="floating-symbol symbol-3">♥</div>
+
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-logo">♣</div>
+          <div>
+            <h1>云上棋牌室</h1>
+            <p>朋友局 · 轻松玩 · 不打扰</p>
+          </div>
+        </div>
+
+        <div class="top-right">
+          <div class="user-chip">
+            <div class="small-avatar">清</div>
+            <strong>清风玩家</strong>
+          </div>
+          <button class="icon-btn">🔗</button>
+          <button class="icon-btn">⚙</button>
+        </div>
+      </header>
+
+      <section class="main">
+        <aside class="panel left-panel">
+          <div class="profile-card">
+            <div class="profile-row">
+              <div class="avatar">清</div>
+              <div>
+                <h2>清风玩家</h2>
+                <p>ID：830216</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="room-card">
+            <h3>房间</h3>
+            <button class="primary-btn">创建好友房</button>
+            <input class="room-input" placeholder="输入房间号加入" />
+            <button class="secondary-btn">加入房间</button>
+          </div>
+
+          <div class="friends-card">
+            <h3>在线好友</h3>
+
+            <div class="friend-list">
+              <div class="friend">
+                <div class="friend-main">
+                  <div class="friend-avatar">林</div>
+                  <div>
+                    <div class="friend-name">林同学</div>
+                    <div class="friend-status">在线 · 空闲</div>
+                  </div>
+                </div>
+                <button class="invite-btn">邀请</button>
+              </div>
+
+              <div class="friend">
+                <div class="friend-main">
+                  <div class="friend-avatar">小</div>
+                  <div>
+                    <div class="friend-name">小周</div>
+                    <div class="friend-status">在线 · 大厅</div>
+                  </div>
+                </div>
+                <button class="invite-btn">邀请</button>
+              </div>
+
+              <div class="friend">
+                <div class="friend-main">
+                  <div class="friend-avatar">阿</div>
+                  <div>
+                    <div class="friend-name">阿源</div>
+                    <div class="friend-status">游戏中</div>
+                  </div>
+                </div>
+                <button class="invite-btn">观战</button>
+              </div>
+
+              <div class="friend">
+                <div class="friend-main">
+                  <div class="friend-avatar">陈</div>
+                  <div>
+                    <div class="friend-name">陈哥</div>
+                    <div class="friend-status">离线</div>
+                  </div>
+                </div>
+                <button class="invite-btn">留言</button>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <section class="panel center-panel">
+          <div class="welcome">
+            <h2>和朋友开一局吧</h2>
+            <p>选择游戏后创建房间，把房号发给好友。界面保持简单，只保留一起玩需要的功能。</p>
+
+            <div class="table-art"></div>
+            <div class="mini-card a">A</div>
+            <div class="mini-card k">K</div>
+            <div class="mini-card q">Q</div>
+          </div>
+
+          <div class="section-head">
+            <h3>选择游戏</h3>
+            <span>好友局模式</span>
+          </div>
+
+          <div class="game-grid">
+            <article class="game-card">
+              <div class="game-icon">🃏</div>
+              <h4>斗地主</h4>
+              <p>三人好友局，适合最常用的朋友开黑玩法。</p>
+              <button class="game-action">开始</button>
+            </article>
+
+            <article class="game-card">
+              <div class="game-icon">♦</div>
+              <h4>炸金花</h4>
+              <p>短局轻松，适合几个人快速来一把。</p>
+              <button class="game-action">开始</button>
+            </article>
+
+            <article class="game-card">
+              <div class="game-icon">🀄</div>
+              <h4>麻将</h4>
+              <p>好友同桌，适合慢节奏休闲对局。</p>
+              <button class="game-action">开始</button>
+            </article>
+
+            <article class="game-card">
+              <div class="game-icon">♣</div>
+              <h4>跑得快</h4>
+              <p>规则简单，适合碎片时间一起玩。</p>
+              <button class="game-action">开始</button>
+            </article>
+          </div>
+        </section>
+
+        <aside class="panel right-panel">
+          <div class="current-room">
+            <h3>当前房间</h3>
+            <div class="room-number">无房间</div>
+            <p>创建房间后，这里会显示房号、人数和当前选择的游戏。</p>
+          </div>
+
+          <div class="chat-card">
+            <h3>好友消息</h3>
+
+            <div class="messages">
+              <div class="message"><strong>林同学：</strong>今晚玩斗地主吗？</div>
+              <div class="message"><strong>小周：</strong>我等下就来。</div>
+              <div class="message"><strong>系统：</strong>你可以创建房间并复制房号。</div>
+            </div>
+
+            <div class="chat-input">
+              <input placeholder="发一句消息" />
+              <button>➤</button>
+            </div>
+          </div>
+        </aside>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
