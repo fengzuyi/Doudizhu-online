@@ -116,6 +116,14 @@ export interface GameError {
   message: string;
 }
 
+export interface ChatMessage {
+  id: string;
+  account: string;
+  nickname: string;
+  text: string;
+  at: number;
+}
+
 export interface ClientToServerEvents {
   "room:create": (payload: { nickname: string }) => void;
   "room:join": (payload: { roomCode: string; nickname: string }) => void;
@@ -124,10 +132,16 @@ export interface ClientToServerEvents {
   "bid:choose": (payload: { score: BidScore }) => void;
   "play:cards": (payload: { cardIds: string[] }) => void;
   "play:pass": () => void;
+  "chat:join": (payload: { token: string }) => void;
+  "chat:send": (payload: { text: string }) => void;
+  "chat:leave": () => void;
 }
 
 export interface ServerToClientEvents {
   "room:state": (payload: { roomView: RoomView }) => void;
   "game:error": (payload: GameError) => void;
   "game:ended": (payload: { result?: RoundResult; message?: string }) => void;
+  "chat:state": (payload: { messages: ChatMessage[]; onlineCount: number }) => void;
+  "chat:message": (payload: { message: ChatMessage }) => void;
+  "chat:error": (payload: GameError) => void;
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   ChevronDown,
@@ -13,7 +13,7 @@ import {
   Settings,
   Users
 } from "lucide-react";
-import type { BidScore, Card, PlayerSeat, PlayerView, RoomView, RoundResult } from "@doudizhu/shared";
+import type { BidScore, Card, ChatMessage, PlayerSeat, PlayerView, RoomView, RoundResult } from "@doudizhu/shared";
 import { socket } from "./socket.js";
 import { GameHall } from "./pages/GameHall.js";
 import { LoginPage, type AuthProfile, type LoginPayload, type RegisterPayload } from "./pages/LoginPage.js";
@@ -168,6 +168,11 @@ export default function App() {
   const [endedNotice, setEndedNotice] = useState<string>("");
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [gameHeaderCollapsed, setGameHeaderCollapsed] = useState(true);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatOnlineCount, setChatOnlineCount] = useState(0);
+  const [chatJoined, setChatJoined] = useState(false);
+  const [chatDraft, setChatDraft] = useState("");
+  const [gameChatOpen, setGameChatOpen] = useState(false);
   const roomRef = useRef<RoomView | null>(null);
   const suppressRoomStateRef = useRef(false);
 
@@ -246,11 +251,31 @@ export default function App() {
       }
     }
 
+    function onChatState({ messages, onlineCount }: { messages: ChatMessage[]; onlineCount: number }) {
+      setChatMessages(messages);
+      setChatOnlineCount(onlineCount);
+      setChatJoined(true);
+    }
+
+    function onChatMessage({ message }: { message: ChatMessage }) {
+      setChatMessages((current) => [...current, message].slice(-50));
+    }
+
+    function onChatError({ code, message }: { code: string; message: string }) {
+      if (["UNAUTHORIZED", "CHAT_JOIN_FAILED"].includes(code)) {
+        setChatJoined(false);
+      }
+      setToast(message);
+    }
+
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
     socket.on("room:state", onRoomState);
     socket.on("game:error", onGameError);
     socket.on("game:ended", onGameEnded);
+    socket.on("chat:state", onChatState);
+    socket.on("chat:message", onChatMessage);
+    socket.on("chat:error", onChatError);
 
     return () => {
       socket.off("connect", onConnect);
@@ -258,6 +283,9 @@ export default function App() {
       socket.off("room:state", onRoomState);
       socket.off("game:error", onGameError);
       socket.off("game:ended", onGameEnded);
+      socket.off("chat:state", onChatState);
+      socket.off("chat:message", onChatMessage);
+      socket.off("chat:error", onChatError);
     };
   }, [resetRoomSession]);
 
@@ -300,6 +328,11 @@ export default function App() {
         setAuthToken("");
         setNickname("");
         setActiveView("login");
+        setChatMessages([]);
+        setChatOnlineCount(0);
+        setChatJoined(false);
+        setChatDraft("");
+        setGameChatOpen(false);
         setToast(error instanceof Error ? error.message : "登录已过期，请重新登录。");
       })
       .finally(() => {
@@ -312,6 +345,17 @@ export default function App() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!authProfile || !authToken || !connected) {
+      if (!connected) {
+        setChatJoined(false);
+      }
+      return;
+    }
+
+    socket.emit("chat:join", { token: authToken });
+  }, [authProfile, authToken, connected]);
 
   const self = useMemo(() => room?.players.find((player) => player.seat === room.selfSeat), [room]);
   const selfHand = self?.hand ?? [];
@@ -390,6 +434,7 @@ export default function App() {
   }
 
   async function logout() {
+    socket.emit("chat:leave");
     if (room) {
       suppressRoomStateRef.current = true;
       socket.emit("room:leave");
@@ -412,6 +457,11 @@ export default function App() {
     setNickname("");
     setEndedNotice("");
     setLeaveConfirmOpen(false);
+    setChatMessages([]);
+    setChatOnlineCount(0);
+    setChatJoined(false);
+    setChatDraft("");
+    setGameChatOpen(false);
     clearStoredRoomSession();
     clearStoredAuth();
     setToast("已退出登录。");
@@ -497,6 +547,21 @@ export default function App() {
       .catch(() => setToast("复制失败，请手动选择房间号。"));
   }
 
+  function sendChatMessage() {
+    const text = chatDraft.trim();
+    if (!text) {
+      setToast("请输入聊天内容。");
+      return;
+    }
+    if (!chatJoined) {
+      setToast("大厅聊天正在连接，请稍后再试。");
+      return;
+    }
+
+    socket.emit("chat:send", { text });
+    setChatDraft("");
+  }
+
   if (authChecking) {
     return (
       <main className="login-page auth-checking-page" aria-label="验证登录状态">
@@ -542,6 +607,12 @@ export default function App() {
           onUnavailable={(gameName) => setToast(`${gameName} 敬请期待。`)}
           onInfo={setToast}
           onLogout={logout}
+          chatMessages={chatMessages}
+          chatOnlineCount={chatOnlineCount}
+          chatJoined={chatJoined}
+          chatDraft={chatDraft}
+          onChatDraftChange={setChatDraft}
+          onSendChat={sendChatMessage}
         />
         <Toast message={toast} />
       </>
@@ -690,6 +761,18 @@ export default function App() {
 
       {room.phase === "ended" && <ResultDialog room={room} notice={endedNotice} />}
       {leaveConfirmOpen && <LeaveConfirmDialog onCancel={() => setLeaveConfirmOpen(false)} onConfirm={leaveRoom} />}
+      <GameChatDock
+        open={gameChatOpen}
+        messages={chatMessages}
+        onlineCount={chatOnlineCount}
+        joined={chatJoined}
+        connected={connected}
+        account={authProfile.account}
+        draft={chatDraft}
+        onDraftChange={setChatDraft}
+        onSend={sendChatMessage}
+        onToggle={() => setGameChatOpen((current) => !current)}
+      />
       <Toast message={toast} />
     </div>
   );
@@ -936,6 +1019,112 @@ function LeaveConfirmDialog({ onCancel, onConfirm }: { onCancel: () => void; onC
       </section>
     </div>
   );
+}
+
+function GameChatDock({
+  open,
+  messages,
+  onlineCount,
+  joined,
+  connected,
+  account,
+  draft,
+  onDraftChange,
+  onSend,
+  onToggle
+}: {
+  open: boolean;
+  messages: ChatMessage[];
+  onlineCount: number;
+  joined: boolean;
+  connected: boolean;
+  account: string;
+  draft: string;
+  onDraftChange: (value: string) => void;
+  onSend: () => void;
+  onToggle: () => void;
+}) {
+  const messagesRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const node = messagesRef.current;
+    if (!node) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      node.scrollTop = node.scrollHeight;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [messages.length, open]);
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onSend();
+  }
+
+  return (
+    <aside className={`game-chat-dock ${open ? "open" : ""}`} aria-label="大厅聊天">
+      <button className="game-chat-toggle" type="button" aria-expanded={open} onClick={onToggle}>
+        <Send size={18} aria-hidden="true" />
+        大厅聊天
+        <span>{joined ? `${onlineCount}人` : "连接中"}</span>
+      </button>
+      {open && (
+        <section className="game-chat-panel">
+          <div className="game-chat-head">
+            <strong>大厅聊天</strong>
+            <span>{joined ? `${onlineCount} 人在线` : "正在连接"}</span>
+          </div>
+          <div className="game-chat-messages" ref={messagesRef}>
+            {messages.length > 0 ? (
+              messages.map((message) => (
+                <p className={`game-chat-message ${message.account === account ? "from-self" : ""}`} key={message.id}>
+                  <span>
+                    <strong>{message.nickname}</strong>
+                    <time>{formatChatTime(message.at)}</time>
+                  </span>
+                  {message.text}
+                </p>
+              ))
+            ) : (
+              <p className="game-chat-message">
+                <span>
+                  <strong>系统</strong>
+                </span>
+                暂无消息，发一句招呼吧。
+              </p>
+            )}
+          </div>
+          <form className="game-chat-form" onSubmit={handleSubmit}>
+            <input
+              value={draft}
+              onChange={(event) => onDraftChange(event.target.value)}
+              placeholder="发一句消息"
+              aria-label="大厅聊天消息"
+              maxLength={120}
+              disabled={!connected || !joined}
+            />
+            <button type="submit" aria-label="发送消息" disabled={!connected || !joined || !draft.trim()}>
+              <Send size={18} aria-hidden="true" />
+            </button>
+          </form>
+        </section>
+      )}
+    </aside>
+  );
+}
+
+function formatChatTime(timestamp: number) {
+  return new Date(timestamp).toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 }
 
 function Toast({ message }: { message: string }) {

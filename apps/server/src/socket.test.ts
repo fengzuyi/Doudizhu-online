@@ -3,7 +3,7 @@ import { io as createClient } from "socket.io-client";
 import type { AddressInfo } from "node:net";
 import type { Server as HttpServer } from "node:http";
 import type { Socket } from "socket.io-client";
-import type { ClientToServerEvents, PlayerSeat, RoomView, ServerToClientEvents } from "@doudizhu/shared";
+import type { ChatMessage, ClientToServerEvents, GameError, PlayerSeat, RoomView, ServerToClientEvents } from "@doudizhu/shared";
 import { createGameServerWithOptions } from "./createGameServer.js";
 
 type ClientSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -11,6 +11,24 @@ type ClientSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 function waitForState(socket: ClientSocket): Promise<RoomView> {
   return new Promise((resolve) => {
     socket.once("room:state", ({ roomView }) => resolve(roomView));
+  });
+}
+
+function waitForChatState(socket: ClientSocket): Promise<{ messages: ChatMessage[]; onlineCount: number }> {
+  return new Promise((resolve) => {
+    socket.once("chat:state", resolve);
+  });
+}
+
+function waitForChatMessage(socket: ClientSocket): Promise<ChatMessage> {
+  return new Promise((resolve) => {
+    socket.once("chat:message", ({ message }) => resolve(message));
+  });
+}
+
+function waitForChatError(socket: ClientSocket): Promise<GameError> {
+  return new Promise((resolve) => {
+    socket.once("chat:error", resolve);
   });
 }
 
@@ -41,9 +59,23 @@ function connectClient(url: string): Promise<ClientSocket> {
   });
 }
 
+async function registerAccount(baseUrl: string, account: string, nickname: string) {
+  const response = await fetch(`${baseUrl}/api/auth/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ account, nickname, password: "password123" })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to register ${account}`);
+  }
+
+  return (await response.json()) as { token: string; profile: { account: string; nickname: string } };
+}
+
 describe("socket game flow", () => {
   let httpServer: HttpServer;
-  let ioServer: ReturnType<typeof createGameServer>["io"];
+  let ioServer: ReturnType<typeof createGameServerWithOptions>["io"];
   let baseUrl = "";
   let clients: ClientSocket[] = [];
 
@@ -124,5 +156,93 @@ describe("socket game flow", () => {
     expect(view.phase).toBe("playing");
     expect(view.landlordSeat).toBe(highestBidSeat);
     expect(view.players.find((player) => player.seat === highestBidSeat)?.cardCount).toBe(20);
+  });
+
+  it("rejects chat messages before a socket joins chat", async () => {
+    const client = await connectClient(baseUrl);
+    clients = [client];
+
+    const errorPromise = waitForChatError(client);
+    client.emit("chat:send", { text: "有人吗" });
+    const error = await errorPromise;
+
+    expect(error.code).toBe("CHAT_UNAUTHORIZED");
+  });
+
+  it("rejects chat joins with an invalid token", async () => {
+    const client = await connectClient(baseUrl);
+    clients = [client];
+
+    const errorPromise = waitForChatError(client);
+    client.emit("chat:join", { token: "bad-token" });
+    const error = await errorPromise;
+
+    expect(error.code).toBe("UNAUTHORIZED");
+  });
+
+  it("broadcasts global chat messages to joined sockets", async () => {
+    const [a, b] = await Promise.all([connectClient(baseUrl), connectClient(baseUrl)]);
+    clients = [a, b];
+    const accountA = await registerAccount(baseUrl, "alpha", "甲");
+    const accountB = await registerAccount(baseUrl, "beta", "乙");
+
+    const joinedA = waitForChatState(a);
+    a.emit("chat:join", { token: accountA.token });
+    expect((await joinedA).onlineCount).toBe(1);
+
+    const joinedB = waitForChatState(b);
+    b.emit("chat:join", { token: accountB.token });
+    expect((await joinedB).onlineCount).toBe(2);
+
+    const receivedByB = waitForChatMessage(b);
+    a.emit("chat:send", { text: "开一局" });
+    const message = await receivedByB;
+
+    expect(message.nickname).toBe("甲");
+    expect(message.account).toBe("alpha");
+    expect(message.text).toBe("开一局");
+  });
+
+  it("rejects empty and too-long chat messages", async () => {
+    const client = await connectClient(baseUrl);
+    clients = [client];
+    const account = await registerAccount(baseUrl, "gamma", "丙");
+
+    const joined = waitForChatState(client);
+    client.emit("chat:join", { token: account.token });
+    await joined;
+
+    let errorPromise = waitForChatError(client);
+    client.emit("chat:send", { text: "   " });
+    expect((await errorPromise).code).toBe("CHAT_EMPTY");
+
+    errorPromise = waitForChatError(client);
+    client.emit("chat:send", { text: "太".repeat(121) });
+    expect((await errorPromise).code).toBe("CHAT_TOO_LONG");
+  });
+
+  it("keeps the latest 50 chat messages in memory", async () => {
+    const [a, b] = await Promise.all([connectClient(baseUrl), connectClient(baseUrl)]);
+    clients = [a, b];
+    const accountA = await registerAccount(baseUrl, "delta", "丁");
+    const accountB = await registerAccount(baseUrl, "epsilon", "戊");
+
+    const joinedA = waitForChatState(a);
+    a.emit("chat:join", { token: accountA.token });
+    await joinedA;
+
+    for (let index = 0; index < 55; index += 1) {
+      const received = waitForChatMessage(a);
+      a.emit("chat:send", { text: `消息${index}` });
+      await received;
+    }
+
+    const joinedB = waitForChatState(b);
+    b.emit("chat:join", { token: accountB.token });
+    const state = await joinedB;
+
+    expect(state.messages).toHaveLength(50);
+    expect(state.messages[0].text).toBe("消息5");
+    expect(state.messages[49].text).toBe("消息54");
   });
 });

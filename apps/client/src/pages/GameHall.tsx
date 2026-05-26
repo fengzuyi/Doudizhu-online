@@ -7,11 +7,13 @@ import {
   KeyRound,
   LogOut,
   Plus,
+  Send,
   Settings,
   Sparkles,
   UserRound
 } from "lucide-react";
-import { type FormEvent } from "react";
+import { type FormEvent, useEffect, useRef } from "react";
+import type { ChatMessage } from "@doudizhu/shared";
 import type { AuthProfile } from "./LoginPage.js";
 
 interface GameHallProps {
@@ -24,14 +26,13 @@ interface GameHallProps {
   onUnavailable: (gameName: string) => void;
   onInfo: (message: string) => void;
   onLogout: () => void;
+  chatMessages: ChatMessage[];
+  chatOnlineCount: number;
+  chatJoined: boolean;
+  chatDraft: string;
+  onChatDraftChange: (value: string) => void;
+  onSendChat: () => void;
 }
-
-const friends = [
-  { initial: "林", name: "林同学", status: "在线 · 空闲", action: "邀请" },
-  { initial: "周", name: "小周", status: "在线 · 大厅", action: "邀请" },
-  { initial: "源", name: "阿源", status: "游戏中", action: "观战" },
-  { initial: "陈", name: "陈哥", status: "离线", action: "留言" }
-];
 
 const games = [
   {
@@ -77,13 +78,38 @@ export function GameHall({
   onJoinDoudizhuRoom,
   onUnavailable,
   onInfo,
-  onLogout
+  onLogout,
+  chatMessages,
+  chatOnlineCount,
+  chatJoined,
+  chatDraft,
+  onChatDraftChange,
+  onSendChat
 }: GameHallProps) {
   const avatar = avatarText(profile.nickname);
+  const messagesRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const node = messagesRef.current;
+    if (!node) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      node.scrollTop = node.scrollHeight;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [chatMessages.length]);
 
   function handleJoinSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     onJoinDoudizhuRoom();
+  }
+
+  function handleChatSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onSendChat();
   }
 
   return (
@@ -160,25 +186,6 @@ export function GameHall({
               </form>
             </section>
 
-            <section className="friends-list-card" aria-label="在线好友">
-              <h3>在线好友</h3>
-              <div className="friends-list">
-                {friends.map((friend) => (
-                  <div className="friends-row" key={friend.name}>
-                    <div className="friends-row-main">
-                      <span className="friends-row-avatar">{friend.initial}</span>
-                      <div>
-                        <strong>{friend.name}</strong>
-                        <span>{friend.status}</span>
-                      </div>
-                    </div>
-                    <button type="button" onClick={() => onInfo(`${friend.name} 的${friend.action}功能将在正式版开放。`)}>
-                      {friend.action}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </section>
           </aside>
 
           <section className="friends-panel friends-center-panel">
@@ -226,26 +233,52 @@ export function GameHall({
           </section>
 
           <aside className="friends-panel friends-right-panel">
-            <section className="friends-chat-card" aria-label="大厅提示">
-              <h3>大厅提示</h3>
-              <div className="friends-messages">
-                <p>
-                  <strong>好友房：</strong>创建和加入房间都在左侧“房间”区域完成。
-                </p>
-                <p>
-                  <strong>房号：</strong>创建房间后会进入等待页，可在牌桌顶部复制房号。
-                </p>
-                <p>
-                  <strong>联机：</strong>当前版本不包含真实好友聊天，避免把本机消息误认为已发送给别人。
-                </p>
-                <p>
-                  <strong>断线：</strong>刷新或断线后会回到大厅，需要重新创建或加入房间。
-                </p>
+            <section className="friends-chat-card" aria-label="大厅聊天">
+              <div className="friends-chat-head">
+                <h3>大厅聊天</h3>
+                <span>{chatJoined ? `${chatOnlineCount} 人在线` : "连接中"}</span>
               </div>
+              <div className="friends-messages" ref={messagesRef}>
+                {chatMessages.length > 0 ? (
+                  chatMessages.map((message) => (
+                    <p key={message.id} className={message.account === profile.account ? "from-self" : ""}>
+                      <span className="friends-chat-message-meta">
+                        <strong>{message.nickname}</strong>
+                        <time>{formatChatTime(message.at)}</time>
+                      </span>
+                      {message.text}
+                    </p>
+                  ))
+                ) : (
+                  <p>
+                    <strong>系统：</strong>暂无消息，发一句招呼吧。
+                  </p>
+                )}
+              </div>
+              <form className="friends-chat-form" onSubmit={handleChatSubmit}>
+                <input
+                  value={chatDraft}
+                  onChange={(event) => onChatDraftChange(event.target.value)}
+                  placeholder="发一句消息"
+                  aria-label="大厅聊天消息"
+                  maxLength={120}
+                  disabled={!connected || !chatJoined}
+                />
+                <button type="submit" aria-label="发送消息" disabled={!connected || !chatJoined || !chatDraft.trim()}>
+                  <Send size={18} aria-hidden="true" />
+                </button>
+              </form>
             </section>
           </aside>
         </section>
       </div>
     </main>
   );
+}
+
+function formatChatTime(timestamp: number) {
+  return new Date(timestamp).toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 }
