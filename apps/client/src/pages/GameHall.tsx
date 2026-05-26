@@ -7,7 +7,6 @@ import {
   KeyRound,
   LogOut,
   Plus,
-  Send,
   Settings,
   Sparkles,
   UserRound
@@ -227,37 +226,22 @@ export function GameHall({
           </section>
 
           <aside className="friends-panel friends-right-panel">
-            <section className="friends-current-room" aria-label="当前房间">
-              <h3>当前房间</h3>
-              <div className="friends-room-number">无房间</div>
-              <p>创建房间后会进入斗地主等待页，房号、人数和准备状态由牌局页面显示。</p>
-            </section>
-
-            <section className="friends-chat-card" aria-label="好友消息">
-              <h3>好友消息</h3>
+            <section className="friends-chat-card" aria-label="大厅提示">
+              <h3>大厅提示</h3>
               <div className="friends-messages">
                 <p>
-                  <strong>林同学：</strong>今晚玩斗地主吗？
+                  <strong>好友房：</strong>创建和加入房间都在左侧“房间”区域完成。
                 </p>
                 <p>
-                  <strong>小周：</strong>我等下就来。
+                  <strong>房号：</strong>创建房间后会进入等待页，可在牌桌顶部复制房号。
                 </p>
                 <p>
-                  <strong>系统：</strong>你可以创建房间并复制房号。
+                  <strong>联机：</strong>当前版本不包含真实好友聊天，避免把本机消息误认为已发送给别人。
+                </p>
+                <p>
+                  <strong>断线：</strong>刷新或断线后会回到大厅，需要重新创建或加入房间。
                 </p>
               </div>
-              <form
-                className="friends-chat-form"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  onInfo("好友消息将在正式版开放。");
-                }}
-              >
-                <input placeholder="发一句消息" aria-label="好友消息" />
-                <button type="submit" aria-label="发送消息">
-                  <Send size={18} aria-hidden="true" />
-                </button>
-              </form>
             </section>
           </aside>
         </section>
