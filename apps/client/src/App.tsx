@@ -113,6 +113,7 @@ export default function App() {
       .map((seat) => room.players.find((player) => player.seat === seat))
       .filter((player): player is PlayerView => Boolean(player));
   }, [room]);
+  const waitingOpponentSlots = Math.max(0, 2 - opponents.length);
 
   function ensureNickname(): string | null {
     const trimmed = nickname.trim();
@@ -190,14 +191,28 @@ export default function App() {
 
         <main className="lobby-panel">
           <section className="brand-panel">
-            <div className="brand-mark">
-              <Crown size={36} aria-hidden="true" />
+            <div className="table-preview" aria-hidden="true">
+              <div className="brand-mark">
+                <Crown size={36} />
+              </div>
+              <div className="preview-card preview-card-left">A</div>
+              <div className="preview-card preview-card-main">王</div>
+              <div className="preview-card preview-card-right">2</div>
             </div>
             <h2>三人真人房</h2>
-            <p>本机演示版</p>
+            <p>创建房间，三名玩家准备后直接开局</p>
+            <div className="feature-strip" aria-label="游戏特性">
+              <span>54 张牌</span>
+              <span>轮流叫分</span>
+              <span>服务端判定</span>
+            </div>
           </section>
 
           <section className="entry-panel" aria-label="进入房间">
+            <div className="panel-heading">
+              <p className="eyebrow">快速入座</p>
+              <h2>开始一局斗地主</h2>
+            </div>
             <label>
               昵称
               <input
@@ -245,9 +260,18 @@ export default function App() {
           <button className="icon-btn" type="button" onClick={copyRoomCode} aria-label="复制房间号">
             <Clipboard size={18} aria-hidden="true" />
           </button>
-          <span className="phase-pill">{getPhaseLabel(room)}</span>
-          <span className="phase-pill">最高 {room.highestBidScore > 0 ? `${room.highestBidScore}分` : "未叫"}</span>
-          <span className="phase-pill strong">倍数 x{room.multiplier}</span>
+          <span className="phase-pill">
+            <span className="metric-label">阶段</span>
+            {getPhaseLabel(room)}
+          </span>
+          <span className="phase-pill">
+            <span className="metric-label">最高</span>
+            {room.highestBidScore > 0 ? `${room.highestBidScore}分` : "未叫"}
+          </span>
+          <span className="phase-pill strong">
+            <span className="metric-label">倍数</span>
+            x{room.multiplier}
+          </span>
         </div>
         <div className="header-actions">
           <ConnectionPill connected={connected} />
@@ -258,7 +282,9 @@ export default function App() {
         </div>
       </header>
 
-      <main className="table-surface">
+      {!connected && <div className="offline-banner">连接已断开，请检查本地服务或刷新后重新进入房间。</div>}
+
+      <main className={`table-surface phase-${room.phase}`}>
         <section className="opponents-row" aria-label="其他玩家">
           {opponents.map((player) => (
             <SeatPanel
@@ -269,11 +295,13 @@ export default function App() {
               result={room.result}
             />
           ))}
-          {opponents.length === 0 && <EmptySeats />}
+          {Array.from({ length: waitingOpponentSlots }).map((_, index) => (
+            <EmptySeats key={`waiting-${index}`} />
+          ))}
         </section>
 
         <section className="center-table" aria-label="牌桌">
-          <div className="bottom-cards">
+          <div className="center-card bottom-cards">
             <span>底牌</span>
             <div className="mini-card-row">
               {room.bottomCards.length > 0
@@ -282,7 +310,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="last-play">
+          <div className="center-card last-play">
             <span>上一手</span>
             {room.lastPlay ? (
               <>
@@ -339,12 +367,16 @@ export default function App() {
         <aside className="turn-log" aria-label="牌局记录">
           <h2>牌局记录</h2>
           <div className="log-list">
-            {room.turnLog.map((event) => (
-              <div className="log-line" key={`${event.at}-${event.label}-${event.seat ?? "system"}`}>
-                <span>{event.nickname ?? "系统"}</span>
-                <strong>{event.label}</strong>
-              </div>
-            ))}
+            {room.turnLog.length > 0 ? (
+              room.turnLog.map((event) => (
+                <div className="log-line" key={`${event.at}-${event.label}-${event.seat ?? "system"}`}>
+                  <span>{event.nickname ?? "系统"}</span>
+                  <strong>{event.label}</strong>
+                </div>
+              ))
+            ) : (
+              <div className="log-empty">等待玩家准备</div>
+            )}
           </div>
         </aside>
       </main>
@@ -382,10 +414,19 @@ function SeatPanel({
   compact?: boolean;
 }) {
   return (
-    <article className={`seat-panel ${active ? "active" : ""} ${compact ? "compact" : ""}`}>
+    <article
+      className={`seat-panel ${active ? "active" : ""} ${compact ? "compact" : ""} ${player.isLandlord ? "landlord" : ""} ${
+        player.connected ? "" : "offline"
+      }`}
+    >
       <div className="seat-title">
         <span>{label}</span>
-        {player.isLandlord && <Crown size={16} aria-label="地主" />}
+        {player.isLandlord && (
+          <span className="role-badge">
+            <Crown size={14} aria-hidden="true" />
+            地主
+          </span>
+        )}
       </div>
       <strong>{player.nickname}</strong>
       <div className="seat-stats">
@@ -423,7 +464,7 @@ function ActionBar({
 }) {
   if (room.phase === "lobby") {
     return (
-      <div className="actions">
+      <div className="actions action-card">
         <button className="primary-btn" type="button" onClick={onReady} disabled={self?.ready}>
           <Play size={18} aria-hidden="true" />
           {self?.ready ? "已准备" : "准备"}
@@ -434,11 +475,11 @@ function ActionBar({
 
   if (room.phase === "bidding") {
     if (!isMyTurn) {
-      return <div className="waiting-text">等待玩家操作</div>;
+      return <div className="waiting-text">等待玩家叫分</div>;
     }
 
     return (
-      <div className="actions">
+      <div className="actions action-card" aria-label="叫分操作">
         <button type="button" onClick={() => onBid(0)}>
           <CircleSlash size={18} aria-hidden="true" />
           不叫
@@ -465,7 +506,7 @@ function ActionBar({
     }
 
     return (
-      <div className="actions">
+      <div className="actions action-card" aria-label="出牌操作">
         <button className="primary-btn" type="button" onClick={onPlay} disabled={selectedCount === 0}>
           <Send size={18} aria-hidden="true" />
           出牌
@@ -482,7 +523,7 @@ function ActionBar({
   }
 
   return (
-    <div className="actions">
+    <div className="actions action-card">
       <button className="primary-btn" type="button" onClick={onReady}>
         <Play size={18} aria-hidden="true" />
         再来一局
@@ -504,8 +545,11 @@ function CardView({
 }) {
   const content = (
     <>
-      <span className="card-rank">{card.label}</span>
-      <span className="card-suit">{card.suitSymbol}</span>
+      <span className="card-corner">
+        <span className="card-rank">{card.label}</span>
+        <span className="card-suit">{card.suitSymbol}</span>
+      </span>
+      <span className="card-center-suit">{card.suit === "joker" ? card.label : card.suitSymbol}</span>
     </>
   );
 
