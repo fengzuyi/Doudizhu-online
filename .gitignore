@@ -6,3 +6,4 @@ packages/*/dist/
 .env
 .env.*
 PROJECT_PLAN.md
+炸金花规则设计文档.md

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CircleSlash, Clipboard, Crown, LogOut, Play, Send, Users } from "lucide-react";
+import { Bell, CircleSlash, Clipboard, Crown, HelpCircle, LogOut, Play, Send, Settings, Users } from "lucide-react";
 import type { BidScore, Card, PlayerSeat, PlayerView, RoomView, RoundResult } from "@doudizhu/shared";
 import { socket } from "./socket.js";
 import { GameHall } from "./pages/GameHall.js";
@@ -186,22 +186,14 @@ export default function App() {
     setToast("已退出登录。");
   }
 
-  function backToHall() {
-    if (room) {
-      socket.emit("room:leave");
-    }
-
-    setRoom(null);
-    setSelectedIds(new Set());
-    setEndedNotice("");
-    setActiveView("hall");
-  }
-
   function leaveRoom() {
     socket.emit("room:leave");
     setRoom(null);
     setSelectedIds(new Set());
     setEndedNotice("");
+    setRoomCodeInput("");
+    setActiveView("hall");
+    setToast("已离开房间。");
   }
 
   function ensureNickname(): string | null {
@@ -282,7 +274,7 @@ export default function App() {
     );
   }
 
-  if (activeView === "hall") {
+  if (activeView === "hall" || !room) {
     return (
       <>
         <GameHall
@@ -301,214 +293,138 @@ export default function App() {
     );
   }
 
-  if (!room) {
-    return (
-      <div className="app-shell">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">Dou Dizhu Online</p>
-            <h1>斗地主房间入口</h1>
-          </div>
-          <div className="header-actions">
-            <ConnectionPill connected={connected} />
-            <button className="ghost-btn" type="button" onClick={backToHall}>
-              返回大厅
-            </button>
-          </div>
-        </header>
-
-        <main className="lobby-panel">
-          <section className="brand-panel">
-            <div className="table-preview" aria-hidden="true">
-              <div className="brand-mark">
-                <Crown size={36} aria-hidden="true" />
-              </div>
-              <div className="preview-card preview-card-left">A</div>
-              <div className="preview-card preview-card-main">王</div>
-              <div className="preview-card preview-card-right">2</div>
-            </div>
-            <h2>三人真人房</h2>
-            <p>创建房间，三名玩家准备后进入轮流叫分和出牌流程。</p>
-            <div className="feature-strip" aria-label="游戏特色">
-              <span>54 张牌</span>
-              <span>轮流叫分</span>
-              <span>服务端判定</span>
-            </div>
-          </section>
-
-          <section className="entry-panel" aria-label="进入房间">
-            <div className="panel-heading">
-              <p className="eyebrow">好友房</p>
-              <h2>创建或加入房间</h2>
-            </div>
-            <label>
-              昵称
-              <input
-                value={nickname}
-                maxLength={16}
-                onChange={(event) => setNickname(event.target.value)}
-                placeholder="例如：阿星"
-              />
-            </label>
-            <button className="primary-btn" type="button" onClick={createRoom}>
-              <Users size={18} aria-hidden="true" />
-              创建房间
-            </button>
-            <div className="join-row">
-              <label>
-                房间号
-                <input
-                  value={roomCodeInput}
-                  maxLength={4}
-                  onChange={(event) => setRoomCodeInput(event.target.value.toUpperCase())}
-                  placeholder="ABCD"
-                />
-              </label>
-              <button type="button" onClick={joinRoom}>
-                <Play size={18} aria-hidden="true" />
-                加入
-              </button>
-            </div>
-          </section>
-        </main>
-
-        <Toast message={toast} />
-      </div>
-    );
-  }
-
   const isMyTurn = activeSeat === room.selfSeat;
   const canPass = Boolean(room.lastPlay?.seat !== undefined && room.lastPlay.seat !== room.selfSeat);
 
   return (
-    <div className="app-shell game-shell">
-      <header className="game-header">
-        <div className="room-meta">
-          <span className="room-code">房间 {room.roomCode}</span>
-          <button className="icon-btn" type="button" onClick={copyRoomCode} aria-label="复制房间号">
-            <Clipboard size={18} aria-hidden="true" />
-          </button>
-          <span className="phase-pill">
-            <span className="metric-label">阶段</span>
-            {getPhaseLabel(room)}
-          </span>
-          <span className="phase-pill">
-            <span className="metric-label">最高</span>
-            {room.highestBidScore > 0 ? `${room.highestBidScore}分` : "未叫"}
-          </span>
-          <span className="phase-pill strong">
-            <span className="metric-label">倍数</span>
-            x{room.multiplier}
-          </span>
+    <div className="zen-game-shell">
+      <header className="zen-game-header">
+        <div className="zen-header-left">
+          <strong className="zen-brand-title">云上棋牌室</strong>
+          <span className="zen-header-divider" aria-hidden="true" />
+          <div className="zen-room-pills" aria-label="房间状态">
+            <span className="zen-pill room">
+              <span>房间</span>
+              <strong>{room.roomCode}</strong>
+              <button className="zen-copy-button" type="button" onClick={copyRoomCode} aria-label="复制房间号">
+                <Clipboard size={16} aria-hidden="true" />
+              </button>
+            </span>
+            <span className="zen-pill">阶段 {getPhaseLabel(room)}</span>
+            <span className="zen-pill">最高 {room.highestBidScore > 0 ? `${room.highestBidScore}分` : "未叫"}</span>
+            <span className="zen-pill">倍数 x{room.multiplier}</span>
+          </div>
         </div>
-        <div className="header-actions">
+
+        <div className="zen-header-actions">
           <ConnectionPill connected={connected} />
-          <button className="ghost-btn" type="button" onClick={leaveRoom}>
+          <button className="zen-icon-button" type="button" onClick={() => setToast("通知中心将在正式版开放。")} aria-label="通知">
+            <Bell size={18} aria-hidden="true" />
+          </button>
+          <button className="zen-icon-button" type="button" onClick={() => setToast("设置将在正式版开放。")} aria-label="设置">
+            <Settings size={18} aria-hidden="true" />
+          </button>
+          <button className="zen-icon-button" type="button" onClick={() => setToast("帮助中心将在正式版开放。")} aria-label="帮助">
+            <HelpCircle size={18} aria-hidden="true" />
+          </button>
+          <button className="zen-leave-button" type="button" onClick={leaveRoom}>
             <LogOut size={18} aria-hidden="true" />
             离开
           </button>
         </div>
       </header>
 
-      {!connected && <div className="offline-banner">连接已断开，请检查本地服务或刷新后重新进入房间。</div>}
+      {!connected && <div className="zen-offline-banner">连接已断开，请检查本地服务或刷新后重新进入房间。</div>}
 
-      <main className={`table-surface phase-${room.phase}`}>
-        <section className="opponents-row" aria-label="其他玩家">
-          {opponents.map((player) => (
-            <SeatPanel
-              key={player.seat}
-              player={player}
-              label={seatName(player.seat, room.selfSeat)}
-              active={activeSeat === player.seat}
-              result={room.result}
-            />
-          ))}
-          {Array.from({ length: waitingOpponentSlots }).map((_, index) => (
-            <EmptySeats key={`waiting-${index}`} />
-          ))}
-        </section>
-
-        <section className="center-table" aria-label="牌桌">
-          <div className="center-card bottom-cards">
-            <span>底牌</span>
-            <div className="mini-card-row">
-              {room.bottomCards.length > 0
-                ? room.bottomCards.map((card) => <CardView key={card.id} card={card} compact />)
-                : Array.from({ length: room.hiddenBottomCount }).map((_, index) => <CardBack key={index} compact />)}
-            </div>
-          </div>
-
-          <div className="center-card last-play">
-            <span>上一手</span>
-            {room.lastPlay ? (
-              <>
-                <strong>
-                  {room.lastPlay.nickname} · {room.lastPlay.label}
-                </strong>
-                <div className="mini-card-row">
-                  {room.lastPlay.cards?.map((card) => <CardView key={card.id} card={card} compact />)}
-                </div>
-              </>
-            ) : (
-              <strong>新一轮</strong>
-            )}
-          </div>
-
-          <div className="message-strip">{room.message}</div>
-        </section>
-
-        <section className="action-zone" aria-label="操作区">
-          <ActionBar
-            room={room}
-            self={self}
-            isMyTurn={isMyTurn}
-            selectedCount={selectedCards.length}
-            canPass={canPass}
-            onReady={() => socket.emit("game:ready")}
-            onBid={chooseBid}
-            onPlay={playSelected}
-            onPass={() => socket.emit("play:pass")}
-            onClear={() => setSelectedIds(new Set())}
-          />
-        </section>
-
-        <section className="self-area" aria-label="我的手牌">
-          {self && (
-            <SeatPanel
-              player={self}
-              label={seatName(self.seat, room.selfSeat)}
-              active={isMyTurn}
-              result={room.result}
-              compact
-            />
-          )}
-          <div className="hand-grid">
-            {selfHand.map((card) => (
-              <CardView
-                key={card.id}
-                card={card}
-                selected={selectedIds.has(card.id)}
-                onClick={() => toggleCard(card.id)}
+      <main className="zen-game-main">
+        <section className={`zen-table phase-${room.phase}`} aria-label="斗地主牌桌">
+          <section className="zen-opponents-row" aria-label="其他玩家">
+            {opponents.map((player) => (
+              <SeatPanel
+                key={player.seat}
+                player={player}
+                label={seatName(player.seat, room.selfSeat)}
+                active={activeSeat === player.seat}
+                result={room.result}
               />
             ))}
-          </div>
-        </section>
+            {Array.from({ length: waitingOpponentSlots }).map((_, index) => (
+              <EmptySeats key={`waiting-${index}`} />
+            ))}
+          </section>
 
-        <aside className="turn-log" aria-label="牌局记录">
-          <h2>牌局记录</h2>
-          <div className="log-list">
-            {room.turnLog.length > 0 ? (
-              room.turnLog.map((event) => (
-                <div className="log-line" key={`${event.at}-${event.label}-${event.seat ?? "system"}`}>
-                  <span>{event.nickname ?? "系统"}</span>
-                  <strong>{event.label}</strong>
-                </div>
-              ))
-            ) : (
-              <div className="log-empty">等待玩家准备</div>
-            )}
+          <section className="zen-center-zone" aria-label="牌桌中央">
+            <div className="zen-bottom-cards">
+              <span>底牌</span>
+              <div className="mini-card-row zen-bottom-card-row">
+                {room.bottomCards.length > 0
+                  ? room.bottomCards.map((card) => <CardView key={card.id} card={card} compact />)
+                  : Array.from({ length: room.hiddenBottomCount }).map((_, index) => <CardBack key={index} compact />)}
+              </div>
+            </div>
+
+            <div className="zen-last-play">
+              <span>上一手</span>
+              {room.lastPlay ? (
+                <>
+                  <strong>
+                    {room.lastPlay.nickname} · {room.lastPlay.label}
+                  </strong>
+                  <div className="mini-card-row zen-last-card-row">
+                    {room.lastPlay.cards?.map((card) => <CardView key={card.id} card={card} compact />)}
+                  </div>
+                </>
+              ) : (
+                <strong>新一轮</strong>
+              )}
+            </div>
+
+            <div className="zen-message-strip">{room.message}</div>
+          </section>
+
+          <div className="zen-actions" aria-label="操作区">
+            <ActionBar
+              room={room}
+              self={self}
+              isMyTurn={isMyTurn}
+              selectedCount={selectedCards.length}
+              canPass={canPass}
+              onReady={() => socket.emit("game:ready")}
+              onBid={chooseBid}
+              onPlay={playSelected}
+              onPass={() => socket.emit("play:pass")}
+              onClear={() => setSelectedIds(new Set())}
+            />
           </div>
-        </aside>
+
+          <section className="zen-hand-area" aria-label="我的手牌">
+            {selfHand.length > 0 && (
+              <div className="hand-grid zen-hand-grid">
+                {selfHand.map((card) => (
+                  <CardView
+                    key={card.id}
+                    card={card}
+                    selected={selectedIds.has(card.id)}
+                    onClick={() => toggleCard(card.id)}
+                  />
+                ))}
+              </div>
+            )}
+            <div className="zen-player-strip">
+              <div className="zen-player-main">
+                <span className="zen-self-avatar">你</span>
+                <div>
+                  <strong>{self?.nickname ?? nickname}</strong>
+                  <span>{self?.connected === false ? "离线" : "在线"}</span>
+                </div>
+              </div>
+              <div className="zen-card-count">
+                <strong>{self?.cardCount ?? 0}</strong>
+                <span>张手牌</span>
+              </div>
+            </div>
+          </section>
+        </section>
       </main>
 
       {room.phase === "ended" && <ResultDialog room={room} notice={endedNotice} />}
