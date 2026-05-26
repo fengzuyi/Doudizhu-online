@@ -153,12 +153,14 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [toast, setToast] = useState<string>("");
   const [endedNotice, setEndedNotice] = useState<string>("");
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const roomRef = useRef<RoomView | null>(null);
   const suppressRoomStateRef = useRef(false);
 
   const resetRoomSession = useCallback((message?: string) => {
     roomRef.current = null;
     clearStoredRoomSession();
+    setLeaveConfirmOpen(false);
     setRoom(null);
     setSelectedIds(new Set());
     setEndedNotice("");
@@ -395,15 +397,26 @@ export default function App() {
     setRoomCodeInput("");
     setNickname("");
     setEndedNotice("");
+    setLeaveConfirmOpen(false);
     clearStoredRoomSession();
     clearStoredAuth();
     setToast("已退出登录。");
   }
 
   function leaveRoom() {
+    setLeaveConfirmOpen(false);
     suppressRoomStateRef.current = true;
     socket.emit("room:leave");
     resetRoomSession("已离开房间。");
+  }
+
+  function requestLeaveRoom() {
+    if (room?.phase === "bidding" || room?.phase === "playing") {
+      setLeaveConfirmOpen(true);
+      return;
+    }
+
+    leaveRoom();
   }
 
   function ensureNickname(): string | null {
@@ -555,7 +568,7 @@ export default function App() {
           <button className="zen-icon-button" type="button" onClick={() => setToast("帮助中心将在正式版开放。")} aria-label="帮助">
             <HelpCircle size={18} aria-hidden="true" />
           </button>
-          <button className="zen-leave-button" type="button" onClick={leaveRoom}>
+          <button className="zen-leave-button" type="button" onClick={requestLeaveRoom}>
             <LogOut size={18} aria-hidden="true" />
             离开
           </button>
@@ -656,6 +669,7 @@ export default function App() {
       </main>
 
       {room.phase === "ended" && <ResultDialog room={room} notice={endedNotice} />}
+      {leaveConfirmOpen && <LeaveConfirmDialog onCancel={() => setLeaveConfirmOpen(false)} onConfirm={leaveRoom} />}
       <Toast message={toast} />
     </div>
   );
@@ -876,6 +890,29 @@ function ResultDialog({ room, notice }: { room: RoomView; notice: string }) {
           <Play size={18} aria-hidden="true" />
           再来一局
         </button>
+      </section>
+    </div>
+  );
+}
+
+function LeaveConfirmDialog({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="leave-confirm-title">
+      <section className="leave-confirm-dialog">
+        <div className="leave-confirm-icon" aria-hidden="true">
+          <LogOut size={26} />
+        </div>
+        <h2 id="leave-confirm-title">确认离开本局？</h2>
+        <p>当前正在对局中，离开会结束你在本局的参与，并可能影响其他玩家的牌局。</p>
+        <div className="leave-confirm-actions">
+          <button className="primary-btn" type="button" onClick={onCancel}>
+            继续游戏
+          </button>
+          <button className="danger-btn" type="button" onClick={onConfirm}>
+            <LogOut size={18} aria-hidden="true" />
+            确认离开
+          </button>
+        </div>
       </section>
     </div>
   );

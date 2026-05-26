@@ -168,7 +168,8 @@ h2 {
 
 .seat-panel,
 .turn-log,
-.result-dialog {
+.result-dialog,
+.leave-confirm-dialog {
   border: 1px solid rgba(255, 248, 234, 0.2);
   border-radius: 8px;
   background: rgba(255, 248, 234, 0.94);
@@ -612,7 +613,8 @@ button.playing-card.selectable:hover:not(:disabled) {
   z-index: 20;
 }
 
-.result-dialog {
+.result-dialog,
+.leave-confirm-dialog {
   width: min(430px, 100%);
   padding: 22px;
   display: grid;
@@ -622,17 +624,50 @@ button.playing-card.selectable:hover:not(:disabled) {
 }
 
 .result-dialog h2,
-.result-dialog p {
+.result-dialog p,
+.leave-confirm-dialog h2,
+.leave-confirm-dialog p {
   margin: 0;
 }
 
-.result-dialog h2 {
+.result-dialog h2,
+.leave-confirm-dialog h2 {
   font-size: 26px;
 }
 
-.result-dialog p {
+.result-dialog p,
+.leave-confirm-dialog p {
   color: #69583d;
   font-weight: 900;
+}
+
+.leave-confirm-dialog {
+  justify-items: center;
+  text-align: center;
+}
+
+.leave-confirm-icon {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #ffdad6;
+  color: #93000a;
+}
+
+.leave-confirm-actions {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.danger-btn {
+  border-color: rgba(147, 0, 10, 0.12);
+  background: #ffdad6;
+  color: #93000a;
+  box-shadow: none;
 }
 
 .result-list {
