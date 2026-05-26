@@ -131,7 +131,7 @@ export function GameHall({
                 </span>
                 <div>
                   <h2>{profile.nickname}</h2>
-                  <p>{profile.mode === "guest" ? "游客试玩" : "账号玩家"} · ID 30216</p>
+                  <p>账号玩家 · ID 30216</p>
                 </div>
               </div>
             </section>

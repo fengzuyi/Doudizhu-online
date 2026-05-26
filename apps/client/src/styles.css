@@ -670,6 +670,10 @@ button.playing-card.selectable:hover:not(:disabled) {
   color: #20313a;
 }
 
+.auth-checking-page {
+  grid-template-columns: 1fr;
+}
+
 .login-page h1,
 .login-page h2,
 .hall-page h1,
@@ -851,6 +855,11 @@ button.playing-card.selectable:hover:not(:disabled) {
   color: #20313a;
 }
 
+.auth-checking-panel {
+  width: min(100%, 520px);
+  justify-self: center;
+}
+
 .login-card-heading {
   display: flex;
   gap: 14px;
@@ -889,6 +898,16 @@ button.playing-card.selectable:hover:not(:disabled) {
   border-color: #ddebe5;
   border-radius: 8px;
   background: #f7fbf8;
+}
+
+.form-error {
+  border: 1px solid #f1c5bd;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff1ee;
+  color: #9d3328;
+  font-size: 14px;
+  font-weight: 850;
 }
 
 .login-options {
@@ -931,23 +950,64 @@ button.playing-card.selectable:hover:not(:disabled) {
   box-shadow: 0 10px 22px rgba(101, 184, 154, 0.34);
 }
 
-.quick-login {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  margin-top: 22px;
+.register-action {
+  margin-top: 18px;
 }
 
-.quick-login button {
-  background: #eef9f3;
-  color: #4b826f;
-  border-color: #cfeadd;
-}
-
-.quick-login button:nth-child(2) {
+.register-action button {
+  width: 100%;
+  min-height: 52px;
   background: #fff8ee;
   color: #8a684a;
   border-color: #ebdcc7;
+}
+
+.register-backdrop {
+  z-index: 40;
+  background: rgba(24, 41, 37, 0.42);
+  backdrop-filter: blur(10px);
+}
+
+.register-dialog {
+  width: min(100%, 460px);
+  max-height: min(760px, calc(100dvh - 40px));
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 8px;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.95);
+  color: #20313a;
+  box-shadow: 0 24px 54px rgba(54, 80, 73, 0.24);
+}
+
+.register-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.register-dialog-head h2 {
+  margin: 0;
+  color: #20313a;
+  font-size: 28px;
+}
+
+.register-close {
+  width: 44px;
+  min-height: 44px;
+  border-radius: 999px;
+  padding: 0;
+  background: #eef9f3;
+  color: #4b826f;
+  border-color: #cfeadd;
+  box-shadow: none;
+}
+
+.register-form {
+  display: grid;
+  gap: 16px;
 }
 
 .safe-tip {
@@ -1328,7 +1388,6 @@ button.playing-card.selectable:hover:not(:disabled) {
     flex-direction: column;
   }
 
-  .quick-login,
   .game-grid {
     grid-template-columns: 1fr;
   }

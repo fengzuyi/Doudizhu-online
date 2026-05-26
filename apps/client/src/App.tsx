@@ -3,9 +3,10 @@ import { Bell, CircleSlash, Clipboard, Crown, HelpCircle, LogOut, Play, Send, Se
 import type { BidScore, Card, PlayerSeat, PlayerView, RoomView, RoundResult } from "@doudizhu/shared";
 import { socket } from "./socket.js";
 import { GameHall } from "./pages/GameHall.js";
-import { LoginPage, type AuthProfile } from "./pages/LoginPage.js";
+import { LoginPage, type AuthProfile, type LoginPayload, type RegisterPayload } from "./pages/LoginPage.js";
 
 const AUTH_STORAGE_KEY = "doudizhu:authProfile";
+const AUTH_TOKEN_STORAGE_KEY = "doudizhu:authToken";
 
 type ActiveView = "login" | "hall" | "doudizhu";
 
@@ -17,14 +18,65 @@ function readStoredAuth(): AuthProfile | null {
     }
 
     const parsed = JSON.parse(raw) as Partial<AuthProfile>;
-    if (!parsed.nickname || (parsed.mode !== "account" && parsed.mode !== "guest")) {
+    if (!parsed.account || !parsed.nickname || parsed.mode !== "account") {
       return null;
     }
 
-    return { nickname: parsed.nickname, mode: parsed.mode };
+    return { account: parsed.account, nickname: parsed.nickname, mode: parsed.mode };
   } catch {
     return null;
   }
+}
+
+function readStoredToken() {
+  return localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) ?? "";
+}
+
+function clearStoredAuth() {
+  localStorage.removeItem(AUTH_STORAGE_KEY);
+  localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  localStorage.removeItem("doudizhu:nickname");
+}
+
+interface AuthResponse {
+  token: string;
+  profile: AuthProfile;
+}
+
+interface AuthMeResponse {
+  profile: AuthProfile;
+}
+
+class ApiException extends Error {
+  constructor(
+    public readonly code: string,
+    message: string
+  ) {
+    super(message);
+  }
+}
+
+async function requestJson<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const headers = new Headers(options.headers);
+  if (!headers.has("content-type") && options.body) {
+    headers.set("content-type", "application/json");
+  }
+
+  const response = await fetch(path, {
+    ...options,
+    headers
+  });
+  const body = (await response.json()) as { code?: string; message?: string };
+
+  if (!response.ok) {
+    throw new ApiException(body.code ?? "REQUEST_FAILED", body.message ?? "请求失败。");
+  }
+
+  return body as T;
+}
+
+function authHeaders(token: string) {
+  return { authorization: `Bearer ${token}` };
 }
 
 function seatName(seat: PlayerSeat, selfSeat?: PlayerSeat): string {
@@ -66,8 +118,11 @@ function getPhaseLabel(room: RoomView | null): string {
 export default function App() {
   const [connected, setConnected] = useState(socket.connected);
   const [authProfile, setAuthProfile] = useState<AuthProfile | null>(() => readStoredAuth());
-  const [activeView, setActiveView] = useState<ActiveView>(() => (readStoredAuth() ? "hall" : "login"));
-  const [nickname, setNickname] = useState(() => localStorage.getItem("doudizhu:nickname") ?? "");
+  const [authToken, setAuthToken] = useState(() => readStoredToken());
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authChecking, setAuthChecking] = useState(() => Boolean(readStoredAuth() && readStoredToken()));
+  const [activeView, setActiveView] = useState<ActiveView>(() => (readStoredAuth() && readStoredToken() ? "hall" : "login"));
+  const [nickname, setNickname] = useState(() => readStoredAuth()?.nickname ?? "");
   const [roomCodeInput, setRoomCodeInput] = useState("");
   const [room, setRoom] = useState<RoomView | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
@@ -129,6 +184,49 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  useEffect(() => {
+    const storedToken = readStoredToken();
+    if (!storedToken) {
+      setAuthChecking(false);
+      return;
+    }
+
+    let cancelled = false;
+    requestJson<AuthMeResponse>("/api/auth/me", {
+      method: "GET",
+      headers: authHeaders(storedToken)
+    })
+      .then(({ profile }) => {
+        if (cancelled) {
+          return;
+        }
+        setAuthProfile(profile);
+        setAuthToken(storedToken);
+        setNickname(profile.nickname);
+        setActiveView("hall");
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return;
+        }
+        clearStoredAuth();
+        setAuthProfile(null);
+        setAuthToken("");
+        setNickname("");
+        setActiveView("login");
+        setToast(error instanceof Error ? error.message : "登录已过期，请重新登录。");
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setAuthChecking(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const self = useMemo(() => room?.players.find((player) => player.seat === room.selfSeat), [room]);
   const selfHand = self?.hand ?? [];
   const selectedCards = selfHand.filter((card) => selectedIds.has(card.id));
@@ -144,45 +242,86 @@ export default function App() {
   }, [room]);
   const waitingOpponentSlots = Math.max(0, 2 - opponents.length);
 
-  function completeLogin(profile: AuthProfile) {
+  function completeLogin(profile: AuthProfile, token: string, remember: boolean) {
     const cleanProfile = { ...profile, nickname: profile.nickname.trim() };
     setAuthProfile(cleanProfile);
+    setAuthToken(token);
     setActiveView("hall");
     setNickname(cleanProfile.nickname);
-    localStorage.setItem("doudizhu:nickname", cleanProfile.nickname);
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(cleanProfile));
+    if (remember) {
+      localStorage.setItem("doudizhu:nickname", cleanProfile.nickname);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(cleanProfile));
+      localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+    } else {
+      clearStoredAuth();
+    }
     setToast("");
   }
 
-  function loginWithAccount(account: string) {
+  async function loginWithAccount({ account, password, remember }: LoginPayload) {
     const trimmed = account.trim();
     if (!trimmed) {
       setToast("请输入手机号 / 游戏账号。");
       return;
     }
+    if (!password) {
+      setToast("请输入密码。");
+      return;
+    }
 
-    completeLogin({ nickname: trimmed, mode: "account" });
+    setAuthBusy(true);
+    try {
+      const result = await requestJson<AuthResponse>("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ account: trimmed, password })
+      });
+      completeLogin(result.profile, result.token, remember);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "登录失败。");
+    } finally {
+      setAuthBusy(false);
+    }
   }
 
-  function loginAsGuest() {
-    const guestName = `游客${Math.floor(1000 + Math.random() * 9000)}`;
-    completeLogin({ nickname: guestName, mode: "guest" });
+  async function registerAccount(payload: RegisterPayload, remember: boolean) {
+    setAuthBusy(true);
+    try {
+      const result = await requestJson<AuthResponse>("/api/auth/register", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+      completeLogin(result.profile, result.token, remember);
+      setToast("注册成功，已登录。");
+      return true;
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "注册失败。");
+      return false;
+    } finally {
+      setAuthBusy(false);
+    }
   }
 
-  function logout() {
+  async function logout() {
     if (room) {
       socket.emit("room:leave");
     }
+    if (authToken) {
+      requestJson<{ ok: boolean }>("/api/auth/logout", {
+        method: "POST",
+        headers: authHeaders(authToken),
+        body: JSON.stringify({})
+      }).catch(() => undefined);
+    }
 
     setAuthProfile(null);
+    setAuthToken("");
     setActiveView("login");
     setRoom(null);
     setSelectedIds(new Set());
     setRoomCodeInput("");
     setNickname("");
     setEndedNotice("");
-    localStorage.removeItem(AUTH_STORAGE_KEY);
-    localStorage.removeItem("doudizhu:nickname");
+    clearStoredAuth();
     setToast("已退出登录。");
   }
 
@@ -203,7 +342,6 @@ export default function App() {
       return null;
     }
 
-    localStorage.setItem("doudizhu:nickname", trimmed);
     return trimmed;
   }
 
@@ -259,14 +397,31 @@ export default function App() {
       .catch(() => setToast("复制失败，请手动选择房间号。"));
   }
 
+  if (authChecking) {
+    return (
+      <main className="login-page auth-checking-page" aria-label="验证登录状态">
+        <section className="login-card-panel auth-checking-panel">
+          <div className="login-card-heading">
+            <Play size={28} aria-hidden="true" />
+            <div>
+              <h2>正在验证登录状态</h2>
+              <p>请稍候，正在连接本机账号服务。</p>
+            </div>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   if (!authProfile || activeView === "login") {
     return (
       <>
         <LoginPage
           connected={connected}
-          initialAccount={nickname}
+          initialAccount={authProfile?.account ?? ""}
+          isBusy={authBusy}
           onLogin={loginWithAccount}
-          onGuestLogin={loginAsGuest}
+          onRegister={registerAccount}
           onInfo={setToast}
         />
         <Toast message={toast} />

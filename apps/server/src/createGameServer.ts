@@ -3,8 +3,17 @@ import express from "express";
 import { createServer } from "node:http";
 import { Server } from "socket.io";
 import type { ClientToServerEvents, ServerToClientEvents } from "@doudizhu/shared";
+import { AuthException, AuthManager } from "./authManager.js";
 import { GameException, RoomManager } from "./roomManager.js";
 import type { InternalRoom } from "./roomManager.js";
+
+function getBearerToken(header: string | undefined) {
+  if (!header?.startsWith("Bearer ")) {
+    return undefined;
+  }
+
+  return header.slice("Bearer ".length).trim();
+}
 
 export function createGameServer() {
   const app = express();
@@ -15,11 +24,53 @@ export function createGameServer() {
       methods: ["GET", "POST"]
     }
   });
+  const authManager = new AuthManager();
   const roomManager = new RoomManager();
 
   app.use(cors());
   app.use(express.json());
   app.get("/health", (_request, response) => {
+    response.json({ ok: true });
+  });
+
+  function sendAuthError(response: express.Response, error: unknown) {
+    if (error instanceof AuthException) {
+      response.status(error.status).json({ code: error.code, message: error.message });
+      return;
+    }
+
+    const message = error instanceof Error ? error.message : "服务器发生未知错误。";
+    response.status(500).json({ code: "SERVER_ERROR", message });
+  }
+
+  app.post("/api/auth/register", (request, response) => {
+    try {
+      response.json(authManager.register(request.body));
+    } catch (error) {
+      sendAuthError(response, error);
+    }
+  });
+
+  app.post("/api/auth/login", (request, response) => {
+    try {
+      response.json(authManager.login(request.body));
+    } catch (error) {
+      sendAuthError(response, error);
+    }
+  });
+
+  app.get("/api/auth/me", (request, response) => {
+    try {
+      const token = getBearerToken(request.headers.authorization);
+      response.json({ profile: authManager.me(token) });
+    } catch (error) {
+      sendAuthError(response, error);
+    }
+  });
+
+  app.post("/api/auth/logout", (request, response) => {
+    const token = getBearerToken(request.headers.authorization);
+    authManager.logout(token);
     response.json({ ok: true });
   });
 
@@ -121,5 +172,5 @@ export function createGameServer() {
     });
   });
 
-  return { app, httpServer, io, roomManager };
+  return { app, httpServer, io, roomManager, authManager };
 }
