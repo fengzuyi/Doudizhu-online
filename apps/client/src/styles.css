@@ -362,8 +362,8 @@ h2 {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
-.bottom-cards > span,
-.last-play > span {
+.bottom-cards>span,
+.last-play>span {
   color: rgba(255, 248, 234, 0.7);
   font-size: 13px;
   font-weight: 950;
@@ -1430,7 +1430,7 @@ button.playing-card.selectable:hover:not(:disabled) {
   }
 
   .hall-header-actions,
-  .hall-header-actions > * {
+  .hall-header-actions>* {
     width: 100%;
   }
 
@@ -1566,6 +1566,7 @@ button.playing-card.selectable:hover:not(:disabled) {
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {
@@ -2194,7 +2195,7 @@ button.playing-card.selectable:hover:not(:disabled) {
   }
 
   .friends-top-actions,
-  .friends-top-actions > * {
+  .friends-top-actions>* {
     width: 100%;
   }
 
@@ -2288,8 +2289,8 @@ button.playing-card.selectable:hover:not(:disabled) {
 
 .zen-game-shell {
   height: 100dvh;
-  --card-w: 70px;
-  --card-h: 100px;
+  --card-w: 102px;
+  --card-h: 140px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -2317,9 +2318,8 @@ button.playing-card.selectable:hover:not(:disabled) {
 .zen-header-actions,
 .zen-room-pills,
 .zen-pill,
-.zen-player-strip,
-.zen-player-main,
-.zen-card-count {
+.zen-hand-layout,
+.zen-hand-count {
   display: flex;
   align-items: center;
 }
@@ -2334,6 +2334,11 @@ button.playing-card.selectable:hover:not(:disabled) {
   font-size: 30px;
   line-height: 1.1;
   font-weight: 900;
+}
+
+.zen-header-toggle,
+.zen-mobile-summary {
+  display: none;
 }
 
 .zen-header-divider {
@@ -2518,8 +2523,8 @@ button.playing-card.selectable:hover:not(:disabled) {
   background: rgba(234, 239, 236, 0.58);
 }
 
-.zen-bottom-cards > span,
-.zen-last-play > span {
+.zen-bottom-cards>span,
+.zen-last-play>span {
   color: #3f4943;
   font-size: 12px;
   font-weight: 950;
@@ -2628,28 +2633,38 @@ button.playing-card.selectable:hover:not(:disabled) {
   position: absolute;
   left: 24px;
   right: 24px;
-  bottom: 14px;
+  bottom: 8px;
   z-index: 2;
   display: grid;
-  gap: 12px;
+  gap: 0;
+  pointer-events: none;
+}
+
+.zen-hand-layout {
+  position: relative;
+  min-width: 0;
+  justify-content: center;
+  gap: 18px;
+  pointer-events: auto;
 }
 
 .zen-hand-grid {
-  min-height: 126px;
+  min-height: 152px;
   display: flex;
   flex-wrap: nowrap;
   align-items: end;
   justify-content: center;
   overflow: visible;
-  padding: 10px 38px 14px;
-  background: rgba(255, 255, 255, 0.54);
-  border-color: rgba(190, 201, 193, 0.42);
-  backdrop-filter: blur(10px);
+  padding: 8px 0 16px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .zen-hand-grid .playing-card.selectable {
   flex: 0 0 var(--card-w);
-  margin-left: clamp(-40px, -2.25vw, -26px);
+  margin-left: clamp(-50px, -2.6vw, -34px);
 }
 
 .zen-hand-grid .playing-card.selectable:first-child {
@@ -2658,59 +2673,29 @@ button.playing-card.selectable:hover:not(:disabled) {
 
 .zen-hand-grid .playing-card.selectable.selected {
   z-index: 3;
-  transform: translateY(-22px);
+  transform: translateY(-28px);
 }
 
-.zen-player-strip {
-  min-height: 62px;
-  justify-content: space-between;
-  gap: 18px;
-  border: 1px solid rgba(190, 201, 193, 0.46);
-  border-radius: 8px;
-  padding: 10px 18px;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 10px 24px rgba(23, 29, 27, 0.1);
-  backdrop-filter: blur(12px);
-}
-
-.zen-player-main {
-  gap: 14px;
-  min-width: 0;
-}
-
-.zen-self-avatar {
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: #6db896;
-  color: #004831;
-  font-weight: 950;
-}
-
-.zen-player-main strong {
-  display: block;
+.zen-hand-count {
+  position: absolute;
+  left: clamp(52px, 4.8vw, 92px);
+  bottom: calc(var(--card-h) + 42px);
+  z-index: 4;
+  gap: 6px;
   color: #1a6b4e;
-  font-size: 16px;
-  overflow-wrap: anywhere;
+  text-shadow: 0 2px 8px rgba(255, 255, 255, 0.8);
+  pointer-events: none;
 }
 
-.zen-player-main span,
-.zen-card-count span {
+.zen-hand-count span {
   color: #5f5f58;
   font-size: 14px;
   font-weight: 750;
 }
 
-.zen-card-count {
-  gap: 6px;
-  justify-content: flex-end;
-}
-
-.zen-card-count strong {
+.zen-hand-count strong {
   color: #1a6b4e;
-  font-size: 32px;
+  font-size: 34px;
   line-height: 1;
 }
 
@@ -2744,22 +2729,17 @@ button.playing-card.selectable:hover:not(:disabled) {
 }
 
 .zen-table:has(.zen-hand-grid) .zen-actions {
-  bottom: 214px;
+  bottom: 184px;
 }
 
 .zen-table:has(.zen-hand-grid) .zen-hand-area {
-  bottom: 10px;
-  gap: 8px;
+  bottom: 8px;
+  gap: 0;
 }
 
 .zen-table:has(.zen-hand-grid) .zen-hand-grid {
-  min-height: 126px;
-  padding: 10px 38px 14px;
-}
-
-.zen-table:has(.zen-hand-grid) .zen-player-strip {
-  min-height: 62px;
-  padding: 10px 16px;
+  min-height: 152px;
+  padding: 8px 0 16px;
 }
 
 .zen-offline-banner {
@@ -2826,12 +2806,73 @@ button.playing-card.selectable:hover:not(:disabled) {
 
 @media (max-width: 640px) {
   .zen-game-shell {
-    --card-w: 52px;
-    --card-h: 76px;
+    --card-w: 60px;
+    --card-h: 88px;
   }
 
   .zen-game-main {
     padding: 12px;
+  }
+
+  .zen-game-header {
+    padding: 10px 14px;
+    gap: 10px;
+  }
+
+  .zen-game-header.is-collapsed {
+    min-height: auto;
+    padding-bottom: 10px;
+  }
+
+  .zen-game-header.is-collapsed .zen-room-pills,
+  .zen-game-header.is-collapsed .zen-header-actions {
+    display: none;
+  }
+
+  .zen-header-left {
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .zen-brand-title {
+    order: 1;
+    min-width: 0;
+    font-size: 26px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .zen-header-toggle {
+    order: 2;
+    min-height: 40px;
+    border: 0;
+    border-radius: 999px;
+    padding: 0 12px;
+    display: inline-flex;
+    background: rgba(26, 107, 78, 0.1);
+    color: #1a6b4e;
+    box-shadow: none;
+  }
+
+  .zen-mobile-summary {
+    order: 3;
+    width: 100%;
+    min-height: 32px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    padding: 0 12px;
+    background: #dee4e0;
+    color: #3f4943;
+    font-size: 13px;
+    font-weight: 850;
+  }
+
+  .zen-game-header.is-collapsed .zen-mobile-summary {
+    display: flex;
   }
 
   .zen-header-divider {
@@ -2840,6 +2881,7 @@ button.playing-card.selectable:hover:not(:disabled) {
 
   .zen-room-pills,
   .zen-header-actions {
+    order: 4;
     align-items: stretch;
     width: 100%;
   }
@@ -2859,7 +2901,7 @@ button.playing-card.selectable:hover:not(:disabled) {
   }
 
   .zen-table:has(.zen-hand-grid) {
-    padding-bottom: 300px;
+    padding-bottom: 230px;
   }
 
   .zen-opponents-row {
@@ -2906,7 +2948,7 @@ button.playing-card.selectable:hover:not(:disabled) {
   }
 
   .zen-table:has(.zen-hand-grid) .zen-actions {
-    bottom: 206px;
+    bottom: 154px;
   }
 
   .zen-actions .actions {
@@ -2922,28 +2964,37 @@ button.playing-card.selectable:hover:not(:disabled) {
   .zen-hand-area {
     left: 10px;
     right: 10px;
-    bottom: 10px;
+    bottom: 8px;
   }
 
-  .zen-player-strip,
-  .zen-card-count {
-    align-items: flex-start;
-    flex-direction: column;
+  .zen-hand-layout {
+    justify-content: center;
+    gap: 8px;
   }
 
-  .zen-card-count strong {
-    font-size: 26px;
+  .zen-hand-count {
+    left: 14px;
+    bottom: calc(var(--card-h) + 26px);
+    gap: 4px;
+  }
+
+  .zen-hand-count strong {
+    font-size: 28px;
+  }
+
+  .zen-hand-count span {
+    font-size: 12px;
   }
 
   .zen-hand-grid {
-    min-height: 98px;
+    min-height: 112px;
     justify-content: flex-start;
-    padding: 8px 20px 14px;
+    padding: 8px 0 12px;
     overflow-x: auto;
     overflow-y: visible;
   }
 
   .zen-hand-grid .playing-card.selectable {
-    margin-left: -18px;
+    margin-left: -25px;
   }
 }

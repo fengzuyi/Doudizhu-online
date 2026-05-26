@@ -1,5 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bell, CircleSlash, Clipboard, Crown, HelpCircle, LogOut, Play, Send, Settings, Users } from "lucide-react";
+import {
+  Bell,
+  ChevronDown,
+  ChevronUp,
+  CircleSlash,
+  Clipboard,
+  Crown,
+  HelpCircle,
+  LogOut,
+  Play,
+  Send,
+  Settings,
+  Users
+} from "lucide-react";
 import type { BidScore, Card, PlayerSeat, PlayerView, RoomView, RoundResult } from "@doudizhu/shared";
 import { socket } from "./socket.js";
 import { GameHall } from "./pages/GameHall.js";
@@ -154,6 +167,7 @@ export default function App() {
   const [toast, setToast] = useState<string>("");
   const [endedNotice, setEndedNotice] = useState<string>("");
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [gameHeaderCollapsed, setGameHeaderCollapsed] = useState(true);
   const roomRef = useRef<RoomView | null>(null);
   const suppressRoomStateRef = useRef(false);
 
@@ -539,9 +553,22 @@ export default function App() {
 
   return (
     <div className="zen-game-shell">
-      <header className="zen-game-header">
+      <header className={`zen-game-header ${gameHeaderCollapsed ? "is-collapsed" : ""}`}>
         <div className="zen-header-left">
           <strong className="zen-brand-title">云上棋牌室</strong>
+          <button
+            className="zen-header-toggle"
+            type="button"
+            aria-controls="zen-header-controls"
+            aria-expanded={!gameHeaderCollapsed}
+            onClick={() => setGameHeaderCollapsed((current) => !current)}
+          >
+            {gameHeaderCollapsed ? <ChevronDown size={18} aria-hidden="true" /> : <ChevronUp size={18} aria-hidden="true" />}
+            {gameHeaderCollapsed ? "展开" : "收起"}
+          </button>
+          <span className="zen-mobile-summary">
+            房间 {room.roomCode} · {getPhaseLabel(room)} · x{room.multiplier}
+          </span>
           <span className="zen-header-divider" aria-hidden="true" />
           <div className="zen-room-pills" aria-label="房间状态">
             <span className="zen-pill room">
@@ -557,7 +584,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="zen-header-actions">
+        <div className="zen-header-actions" id="zen-header-controls">
           <ConnectionPill connected={connected} />
           <button className="zen-icon-button" type="button" onClick={() => setToast("通知中心将在正式版开放。")} aria-label="通知">
             <Bell size={18} aria-hidden="true" />
@@ -639,27 +666,20 @@ export default function App() {
           </div>
 
           <section className="zen-hand-area" aria-label="我的手牌">
-            {selfHand.length > 0 && (
-              <div className="hand-grid zen-hand-grid">
-                {selfHand.map((card) => (
-                  <CardView
-                    key={card.id}
-                    card={card}
-                    selected={selectedIds.has(card.id)}
-                    onClick={() => toggleCard(card.id)}
-                  />
-                ))}
-              </div>
-            )}
-            <div className="zen-player-strip">
-              <div className="zen-player-main">
-                <span className="zen-self-avatar">你</span>
-                <div>
-                  <strong>{self?.nickname ?? nickname}</strong>
-                  <span>{self?.connected === false ? "离线" : "在线"}</span>
+            <div className="zen-hand-layout">
+              {selfHand.length > 0 && (
+                <div className="hand-grid zen-hand-grid">
+                  {selfHand.map((card) => (
+                    <CardView
+                      key={card.id}
+                      card={card}
+                      selected={selectedIds.has(card.id)}
+                      onClick={() => toggleCard(card.id)}
+                    />
+                  ))}
                 </div>
-              </div>
-              <div className="zen-card-count">
+              )}
+              <div className="zen-hand-count" aria-label={`剩余 ${self?.cardCount ?? 0} 张手牌`}>
                 <strong>{self?.cardCount ?? 0}</strong>
                 <span>张手牌</span>
               </div>
