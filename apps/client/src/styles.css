@@ -94,6 +94,12 @@ button:disabled {
   transform: none;
 }
 
+input:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+  background: #eef3f0;
+}
+
 input {
   width: 100%;
   min-height: 48px;
@@ -1018,26 +1024,6 @@ button.playing-card.selectable:hover:not(:disabled) {
   color: #7d8b88;
   font-size: 13px;
   font-weight: 800;
-}
-
-.notice-box {
-  border: 1px solid #eee3d0;
-  border-radius: 8px;
-  padding: 17px 18px;
-  background: rgba(247, 244, 236, 0.9);
-}
-
-.notice-box h3 {
-  margin: 0 0 8px;
-  color: #6a5a45;
-  font-size: 16px;
-}
-
-.notice-box p {
-  margin: 0;
-  color: #7e7567;
-  font-size: 14px;
-  line-height: 1.45;
 }
 
 .links {

@@ -171,6 +171,7 @@ export class RoomManager {
 
     player.connected = false;
     player.ready = false;
+    this.syncPlayerCount(room);
     room.phase = "ended";
     room.currentTurn = undefined;
     room.bid = undefined;
@@ -392,7 +393,7 @@ export class RoomManager {
 
   buildViews(room: InternalRoom): Array<{ socketId: string; roomView: RoomView }> {
     return room.players
-      .filter((player): player is InternalPlayer => Boolean(player))
+      .filter((player): player is InternalPlayer => Boolean(player && player.connected))
       .map((player) => ({
         socketId: player.socketId,
         roomView: this.buildViewForPlayer(room, player.socketId)
@@ -472,6 +473,14 @@ export class RoomManager {
   }
 
   private resetToLobby(room: InternalRoom): void {
+    for (const seat of SEATS) {
+      const player = room.players[seat];
+      if (player && !player.connected) {
+        room.players[seat] = null;
+      }
+    }
+
+    this.syncPlayerCount(room);
     room.phase = "lobby";
     room.bottomCards = [];
     room.landlordSeat = undefined;

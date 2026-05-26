@@ -197,11 +197,6 @@ export function LoginPage({ connected, initialAccount, isBusy, onLogin, onRegist
           安全健康游戏 · 未成年人请在监护人指导下使用
         </p>
 
-        <div className="notice-box">
-          <h3>温馨提示</h3>
-          <p>当前为本机演示版，账号只保存在后端内存中，服务重启后需要重新注册。</p>
-        </div>
-
         <div className="links" aria-label="法律链接">
           <button type="button" onClick={() => onInfo("用户协议将在正式版开放。")}>
             用户协议

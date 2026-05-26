@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bell, CircleSlash, Clipboard, Crown, HelpCircle, LogOut, Play, Send, Settings, Users } from "lucide-react";
 import type { BidScore, Card, PlayerSeat, PlayerView, RoomView, RoundResult } from "@doudizhu/shared";
 import { socket } from "./socket.js";
@@ -7,6 +7,7 @@ import { LoginPage, type AuthProfile, type LoginPayload, type RegisterPayload } 
 
 const AUTH_STORAGE_KEY = "doudizhu:authProfile";
 const AUTH_TOKEN_STORAGE_KEY = "doudizhu:authToken";
+const ROOM_SESSION_KEY = "doudizhu:activeRoom";
 
 type ActiveView = "login" | "hall" | "doudizhu";
 
@@ -36,6 +37,30 @@ function clearStoredAuth() {
   localStorage.removeItem(AUTH_STORAGE_KEY);
   localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
   localStorage.removeItem("doudizhu:nickname");
+}
+
+function readStoredRoomSession() {
+  try {
+    return sessionStorage.getItem(ROOM_SESSION_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function rememberRoomSession(roomCode: string) {
+  try {
+    sessionStorage.setItem(ROOM_SESSION_KEY, roomCode);
+  } catch {
+    // Session storage can be unavailable in private or restricted browser modes.
+  }
+}
+
+function clearStoredRoomSession() {
+  try {
+    sessionStorage.removeItem(ROOM_SESSION_KEY);
+  } catch {
+    // Nothing to clear when session storage is unavailable.
+  }
 }
 
 interface AuthResponse {
@@ -128,6 +153,34 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [toast, setToast] = useState<string>("");
   const [endedNotice, setEndedNotice] = useState<string>("");
+  const roomRef = useRef<RoomView | null>(null);
+  const suppressRoomStateRef = useRef(false);
+
+  const resetRoomSession = useCallback((message?: string) => {
+    roomRef.current = null;
+    clearStoredRoomSession();
+    setRoom(null);
+    setSelectedIds(new Set());
+    setEndedNotice("");
+    setRoomCodeInput("");
+    setActiveView("hall");
+    if (message) {
+      setToast(message);
+    }
+  }, []);
+
+  useEffect(() => {
+    roomRef.current = room;
+  }, [room]);
+
+  useEffect(() => {
+    const staleRoomCode = readStoredRoomSession();
+    if (!staleRoomCode) {
+      return;
+    }
+
+    resetRoomSession(`刷新后已离开房间 ${staleRoomCode}，请重新创建或加入。`);
+  }, [resetRoomSession]);
 
   useEffect(() => {
     function onConnect() {
@@ -136,10 +189,22 @@ export default function App() {
 
     function onDisconnect() {
       setConnected(false);
+      if (roomRef.current) {
+        resetRoomSession("连接已断开，当前房间已清理，请重新创建或加入。");
+        return;
+      }
+
       setToast("连接已断开。");
     }
 
     function onRoomState({ roomView }: { roomView: RoomView }) {
+      if (suppressRoomStateRef.current) {
+        suppressRoomStateRef.current = false;
+        return;
+      }
+
+      roomRef.current = roomView;
+      rememberRoomSession(roomView.roomCode);
       setRoom(roomView);
       setActiveView("doudizhu");
       setSelectedIds(new Set());
@@ -148,7 +213,12 @@ export default function App() {
       }
     }
 
-    function onGameError({ message }: { message: string }) {
+    function onGameError({ code, message }: { code: string; message: string }) {
+      if (["NO_ROOM", "NO_PLAYER", "ROOM_NOT_FOUND"].includes(code)) {
+        resetRoomSession(message);
+        return;
+      }
+
       setToast(message);
     }
 
@@ -173,7 +243,7 @@ export default function App() {
       socket.off("game:error", onGameError);
       socket.off("game:ended", onGameEnded);
     };
-  }, []);
+  }, [resetRoomSession]);
 
   useEffect(() => {
     if (!toast) {
@@ -244,6 +314,8 @@ export default function App() {
 
   function completeLogin(profile: AuthProfile, token: string, remember: boolean) {
     const cleanProfile = { ...profile, nickname: profile.nickname.trim() };
+    roomRef.current = null;
+    clearStoredRoomSession();
     setAuthProfile(cleanProfile);
     setAuthToken(token);
     setActiveView("hall");
@@ -303,6 +375,7 @@ export default function App() {
 
   async function logout() {
     if (room) {
+      suppressRoomStateRef.current = true;
       socket.emit("room:leave");
     }
     if (authToken) {
@@ -316,23 +389,21 @@ export default function App() {
     setAuthProfile(null);
     setAuthToken("");
     setActiveView("login");
+    roomRef.current = null;
     setRoom(null);
     setSelectedIds(new Set());
     setRoomCodeInput("");
     setNickname("");
     setEndedNotice("");
+    clearStoredRoomSession();
     clearStoredAuth();
     setToast("已退出登录。");
   }
 
   function leaveRoom() {
+    suppressRoomStateRef.current = true;
     socket.emit("room:leave");
-    setRoom(null);
-    setSelectedIds(new Set());
-    setEndedNotice("");
-    setRoomCodeInput("");
-    setActiveView("hall");
-    setToast("已离开房间。");
+    resetRoomSession("已离开房间。");
   }
 
   function ensureNickname(): string | null {
@@ -350,6 +421,7 @@ export default function App() {
     if (!name) {
       return;
     }
+    suppressRoomStateRef.current = false;
     socket.emit("room:create", { nickname: name });
   }
 
@@ -363,6 +435,7 @@ export default function App() {
       setToast("请输入房间号。");
       return;
     }
+    suppressRoomStateRef.current = false;
     socket.emit("room:join", { roomCode, nickname: name });
   }
 

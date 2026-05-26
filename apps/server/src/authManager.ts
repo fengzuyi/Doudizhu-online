@@ -1,4 +1,7 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export interface AuthProfile {
   account: string;
@@ -16,6 +19,10 @@ interface AccountRecord {
   nickname: string;
   passwordHash: string;
   salt: string;
+}
+
+interface AuthStoreFile {
+  accounts: AccountRecord[];
 }
 
 export class AuthException extends Error {
@@ -57,6 +64,10 @@ export class AuthManager {
   private readonly accounts = new Map<string, AccountRecord>();
   private readonly sessions = new Map<string, string>();
 
+  constructor(private readonly storePath: string | null = defaultAuthStorePath()) {
+    this.loadAccounts();
+  }
+
   register(payload: { account?: unknown; nickname?: unknown; password?: unknown }): AuthSuccess {
     const account = normalizeAccount(payload.account);
     const nickname = normalizeNickname(payload.nickname);
@@ -78,6 +89,7 @@ export class AuthManager {
       salt,
       passwordHash: hashPassword(password, salt)
     });
+    this.saveAccounts();
 
     return this.createSession(account);
   }
@@ -143,4 +155,47 @@ export class AuthManager {
       mode: "account"
     };
   }
+
+  private loadAccounts() {
+    if (!this.storePath || !existsSync(this.storePath)) {
+      return;
+    }
+
+    const parsed = JSON.parse(readFileSync(this.storePath, "utf8")) as Partial<AuthStoreFile>;
+    for (const record of parsed.accounts ?? []) {
+      if (isAccountRecord(record)) {
+        this.accounts.set(record.account, record);
+      }
+    }
+  }
+
+  private saveAccounts() {
+    if (!this.storePath) {
+      return;
+    }
+
+    mkdirSync(dirname(this.storePath), { recursive: true });
+    const payload: AuthStoreFile = {
+      accounts: [...this.accounts.values()]
+    };
+    writeFileSync(this.storePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  }
+}
+
+function defaultAuthStorePath() {
+  return process.env.AUTH_STORE_PATH ?? fileURLToPath(new URL("../data/auth-store.json", import.meta.url));
+}
+
+function isAccountRecord(record: unknown): record is AccountRecord {
+  if (!record || typeof record !== "object") {
+    return false;
+  }
+
+  const candidate = record as Partial<AccountRecord>;
+  return (
+    typeof candidate.account === "string" &&
+    typeof candidate.nickname === "string" &&
+    typeof candidate.passwordHash === "string" &&
+    typeof candidate.salt === "string"
+  );
 }

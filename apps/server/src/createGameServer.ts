@@ -16,6 +16,10 @@ function getBearerToken(header: string | undefined) {
 }
 
 export function createGameServer() {
+  return createGameServerWithOptions();
+}
+
+export function createGameServerWithOptions(options: { authStorePath?: string | null } = {}) {
   const app = express();
   const httpServer = createServer(app);
   const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
@@ -24,7 +28,7 @@ export function createGameServer() {
       methods: ["GET", "POST"]
     }
   });
-  const authManager = new AuthManager();
+  const authManager = new AuthManager(options.authStorePath);
   const roomManager = new RoomManager();
 
   app.use(cors());

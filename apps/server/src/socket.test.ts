@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import type { Server as HttpServer } from "node:http";
 import type { Socket } from "socket.io-client";
 import type { ClientToServerEvents, PlayerSeat, RoomView, ServerToClientEvents } from "@doudizhu/shared";
-import { createGameServer } from "./createGameServer.js";
+import { createGameServerWithOptions } from "./createGameServer.js";
 
 type ClientSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -48,7 +48,7 @@ describe("socket game flow", () => {
   let clients: ClientSocket[] = [];
 
   beforeEach(async () => {
-    const created = createGameServer();
+    const created = createGameServerWithOptions({ authStorePath: null });
     httpServer = created.httpServer;
     ioServer = created.io;
 

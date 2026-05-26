@@ -124,4 +124,28 @@ describe("RoomManager", () => {
     expect(result?.multiplier).toBe(2);
     expect(result?.scores).toEqual({ 0: -2, 1: 4, 2: -2 });
   });
+
+  it("ends the round and stops sending room state to a player who leaves during play", () => {
+    const { manager, room } = preparePlayingRoom();
+
+    manager.leaveRoom("s2");
+
+    expect(room.phase).toBe("ended");
+    expect(room.playerCount).toBe(2);
+    expect(room.players[1]?.connected).toBe(false);
+    expect(manager.buildViews(room).map((view) => view.socketId)).toEqual(["s1", "s3"]);
+  });
+
+  it("clears disconnected seats when the remaining players return to lobby", () => {
+    const { manager, room } = preparePlayingRoom();
+
+    manager.disconnect("s2");
+    manager.ready("s1");
+
+    expect(room.phase).toBe("lobby");
+    expect(room.players[1]).toBeNull();
+    expect(room.playerCount).toBe(2);
+    expect(() => manager.joinRoom("s4", room.roomCode, "丁")).not.toThrow();
+    expect(room.players[1]?.nickname).toBe("丁");
+  });
 });

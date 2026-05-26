@@ -138,7 +138,7 @@ export function GameHall({
 
             <section className="friends-room-card" aria-label="房间">
               <h3>房间</h3>
-              <button className="friends-primary-button" type="button" onClick={onCreateDoudizhuRoom}>
+              <button className="friends-primary-button" type="button" onClick={onCreateDoudizhuRoom} disabled={!connected}>
                 <Plus size={18} aria-hidden="true" />
                 创建好友房
               </button>
@@ -151,9 +151,10 @@ export function GameHall({
                     onChange={(event) => onRoomCodeInputChange(event.target.value.toUpperCase())}
                     placeholder="输入房间号加入"
                     autoComplete="off"
+                    disabled={!connected}
                   />
                 </label>
-                <button className="friends-secondary-button" type="submit">
+                <button className="friends-secondary-button" type="submit" disabled={!connected}>
                   <KeyRound size={18} aria-hidden="true" />
                   加入房间
                 </button>
