@@ -13,16 +13,28 @@ import {
   Settings,
   Users
 } from "lucide-react";
-import type { BidScore, Card, ChatMessage, PlayerSeat, PlayerView, RoomView, RoundResult } from "@doudizhu/shared";
+import type {
+  BidScore,
+  Card,
+  ChatMessage,
+  GameKind,
+  PlayerSeat,
+  PlayerView,
+  RoomView,
+  RoundResult,
+  ZjhRoomView,
+  ZjhRoundResult
+} from "@doudizhu/shared";
 import { socket } from "./socket.js";
 import { GameHall } from "./pages/GameHall.js";
 import { LoginPage, type AuthProfile, type LoginPayload, type RegisterPayload } from "./pages/LoginPage.js";
+import { ZhaJinHuaTable } from "./pages/ZhaJinHuaTable.js";
 
 const AUTH_STORAGE_KEY = "doudizhu:authProfile";
 const AUTH_TOKEN_STORAGE_KEY = "doudizhu:authToken";
 const ROOM_SESSION_KEY = "doudizhu:activeRoom";
 
-type ActiveView = "login" | "hall" | "doudizhu";
+type ActiveView = "login" | "hall" | "doudizhu" | "zha_jin_hua";
 
 function readStoredAuth(): AuthProfile | null {
   try {
@@ -162,10 +174,14 @@ export default function App() {
   const [activeView, setActiveView] = useState<ActiveView>(() => (readStoredAuth() && readStoredToken() ? "hall" : "login"));
   const [nickname, setNickname] = useState(() => readStoredAuth()?.nickname ?? "");
   const [roomCodeInput, setRoomCodeInput] = useState("");
+  const [selectedGame, setSelectedGame] = useState<GameKind>("doudizhu");
+  const [zjhMaxPlayers, setZjhMaxPlayers] = useState(4);
   const [room, setRoom] = useState<RoomView | null>(null);
+  const [zjhRoom, setZjhRoom] = useState<ZjhRoomView | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [toast, setToast] = useState<string>("");
   const [endedNotice, setEndedNotice] = useState<string>("");
+  const [zjhEndedNotice, setZjhEndedNotice] = useState<string>("");
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [gameHeaderCollapsed, setGameHeaderCollapsed] = useState(true);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -174,15 +190,20 @@ export default function App() {
   const [chatDraft, setChatDraft] = useState("");
   const [gameChatOpen, setGameChatOpen] = useState(false);
   const roomRef = useRef<RoomView | null>(null);
+  const zjhRoomRef = useRef<ZjhRoomView | null>(null);
   const suppressRoomStateRef = useRef(false);
+  const suppressZjhRoomStateRef = useRef(false);
 
   const resetRoomSession = useCallback((message?: string) => {
     roomRef.current = null;
+    zjhRoomRef.current = null;
     clearStoredRoomSession();
     setLeaveConfirmOpen(false);
     setRoom(null);
+    setZjhRoom(null);
     setSelectedIds(new Set());
     setEndedNotice("");
+    setZjhEndedNotice("");
     setRoomCodeInput("");
     setActiveView("hall");
     if (message) {
@@ -193,6 +214,10 @@ export default function App() {
   useEffect(() => {
     roomRef.current = room;
   }, [room]);
+
+  useEffect(() => {
+    zjhRoomRef.current = zjhRoom;
+  }, [zjhRoom]);
 
   useEffect(() => {
     const staleRoomCode = readStoredRoomSession();
@@ -210,7 +235,7 @@ export default function App() {
 
     function onDisconnect() {
       setConnected(false);
-      if (roomRef.current) {
+      if (roomRef.current || zjhRoomRef.current) {
         resetRoomSession("连接已断开，当前房间已清理，请重新创建或加入。");
         return;
       }
@@ -225,12 +250,32 @@ export default function App() {
       }
 
       roomRef.current = roomView;
+      zjhRoomRef.current = null;
       rememberRoomSession(roomView.roomCode);
       setRoom(roomView);
+      setZjhRoom(null);
       setActiveView("doudizhu");
       setSelectedIds(new Set());
       if (roomView.phase !== "ended") {
         setEndedNotice("");
+      }
+    }
+
+    function onZjhRoomState({ roomView }: { roomView: ZjhRoomView }) {
+      if (suppressZjhRoomStateRef.current) {
+        suppressZjhRoomStateRef.current = false;
+        return;
+      }
+
+      zjhRoomRef.current = roomView;
+      roomRef.current = null;
+      rememberRoomSession(`zjh:${roomView.roomCode}`);
+      setZjhRoom(roomView);
+      setRoom(null);
+      setActiveView("zha_jin_hua");
+      setSelectedIds(new Set());
+      if (roomView.phase !== "ended") {
+        setZjhEndedNotice("");
       }
     }
 
@@ -248,6 +293,14 @@ export default function App() {
         setEndedNotice(message);
       } else if (result) {
         setEndedNotice(result.landlordWon ? "地主获胜" : "农民获胜");
+      }
+    }
+
+    function onZjhGameEnded({ result, message }: { result?: ZjhRoundResult; message?: string }) {
+      if (message) {
+        setZjhEndedNotice(message);
+      } else if (result) {
+        setZjhEndedNotice(`${result.winnerNickname} 赢得本局`);
       }
     }
 
@@ -271,8 +324,10 @@ export default function App() {
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
     socket.on("room:state", onRoomState);
+    socket.on("zjh:room:state", onZjhRoomState);
     socket.on("game:error", onGameError);
     socket.on("game:ended", onGameEnded);
+    socket.on("zjh:game:ended", onZjhGameEnded);
     socket.on("chat:state", onChatState);
     socket.on("chat:message", onChatMessage);
     socket.on("chat:error", onChatError);
@@ -281,8 +336,10 @@ export default function App() {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
       socket.off("room:state", onRoomState);
+      socket.off("zjh:room:state", onZjhRoomState);
       socket.off("game:error", onGameError);
       socket.off("game:ended", onGameEnded);
+      socket.off("zjh:game:ended", onZjhGameEnded);
       socket.off("chat:state", onChatState);
       socket.off("chat:message", onChatMessage);
       socket.off("chat:error", onChatError);
@@ -375,11 +432,14 @@ export default function App() {
   function completeLogin(profile: AuthProfile, token: string, remember: boolean) {
     const cleanProfile = { ...profile, nickname: profile.nickname.trim() };
     roomRef.current = null;
+    zjhRoomRef.current = null;
     clearStoredRoomSession();
     setAuthProfile(cleanProfile);
     setAuthToken(token);
     setActiveView("hall");
     setNickname(cleanProfile.nickname);
+    setRoom(null);
+    setZjhRoom(null);
     if (remember) {
       localStorage.setItem("doudizhu:nickname", cleanProfile.nickname);
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(cleanProfile));
@@ -439,6 +499,10 @@ export default function App() {
       suppressRoomStateRef.current = true;
       socket.emit("room:leave");
     }
+    if (zjhRoom) {
+      suppressZjhRoomStateRef.current = true;
+      socket.emit("zjh:room:leave");
+    }
     if (authToken) {
       requestJson<{ ok: boolean }>("/api/auth/logout", {
         method: "POST",
@@ -451,11 +515,14 @@ export default function App() {
     setAuthToken("");
     setActiveView("login");
     roomRef.current = null;
+    zjhRoomRef.current = null;
     setRoom(null);
+    setZjhRoom(null);
     setSelectedIds(new Set());
     setRoomCodeInput("");
     setNickname("");
     setEndedNotice("");
+    setZjhEndedNotice("");
     setLeaveConfirmOpen(false);
     setChatMessages([]);
     setChatOnlineCount(0);
@@ -469,13 +536,18 @@ export default function App() {
 
   function leaveRoom() {
     setLeaveConfirmOpen(false);
-    suppressRoomStateRef.current = true;
-    socket.emit("room:leave");
+    if (activeView === "zha_jin_hua" || zjhRoom) {
+      suppressZjhRoomStateRef.current = true;
+      socket.emit("zjh:room:leave");
+    } else {
+      suppressRoomStateRef.current = true;
+      socket.emit("room:leave");
+    }
     resetRoomSession("已离开房间。");
   }
 
   function requestLeaveRoom() {
-    if (room?.phase === "bidding" || room?.phase === "playing") {
+    if (room?.phase === "bidding" || room?.phase === "playing" || zjhRoom?.phase === "playing") {
       setLeaveConfirmOpen(true);
       return;
     }
@@ -498,6 +570,12 @@ export default function App() {
     if (!name) {
       return;
     }
+    if (selectedGame === "zha_jin_hua") {
+      suppressZjhRoomStateRef.current = false;
+      socket.emit("zjh:room:create", { nickname: name, maxPlayers: zjhMaxPlayers });
+      return;
+    }
+
     suppressRoomStateRef.current = false;
     socket.emit("room:create", { nickname: name });
   }
@@ -512,6 +590,12 @@ export default function App() {
       setToast("请输入房间号。");
       return;
     }
+    if (selectedGame === "zha_jin_hua") {
+      suppressZjhRoomStateRef.current = false;
+      socket.emit("zjh:room:join", { roomCode, nickname: name });
+      return;
+    }
+
     suppressRoomStateRef.current = false;
     socket.emit("room:join", { roomCode, nickname: name });
   }
@@ -537,12 +621,13 @@ export default function App() {
   }
 
   function copyRoomCode() {
-    if (!room) {
+    const code = room?.roomCode ?? zjhRoom?.roomCode;
+    if (!code) {
       return;
     }
 
     navigator.clipboard
-      ?.writeText(room.roomCode)
+      ?.writeText(code)
       .then(() => setToast("房间号已复制。"))
       .catch(() => setToast("复制失败，请手动选择房间号。"));
   }
@@ -594,16 +679,20 @@ export default function App() {
     );
   }
 
-  if (activeView === "hall" || !room) {
+  if (activeView === "hall" || (!room && !zjhRoom)) {
     return (
       <>
         <GameHall
           profile={authProfile}
           connected={connected}
+          selectedGame={selectedGame}
+          zjhMaxPlayers={zjhMaxPlayers}
           roomCodeInput={roomCodeInput}
+          onGameSelect={setSelectedGame}
+          onZjhMaxPlayersChange={setZjhMaxPlayers}
           onRoomCodeInputChange={setRoomCodeInput}
-          onCreateDoudizhuRoom={createRoom}
-          onJoinDoudizhuRoom={joinRoom}
+          onCreateRoom={createRoom}
+          onJoinRoom={joinRoom}
           onUnavailable={(gameName) => setToast(`${gameName} 敬请期待。`)}
           onInfo={setToast}
           onLogout={logout}
@@ -617,6 +706,45 @@ export default function App() {
         <Toast message={toast} />
       </>
     );
+  }
+
+  if (activeView === "zha_jin_hua" && zjhRoom) {
+    return (
+      <div className="zjh-game-shell">
+        <ZhaJinHuaTable
+          room={zjhRoom}
+          connected={connected}
+          notice={zjhEndedNotice}
+          onReady={() => socket.emit("zjh:game:ready")}
+          onSee={() => socket.emit("zjh:action:see")}
+          onCall={() => socket.emit("zjh:action:call")}
+          onRaise={(amount) => socket.emit("zjh:action:raise", { amount })}
+          onFold={() => socket.emit("zjh:action:fold")}
+          onCompare={(targetSeat) => socket.emit("zjh:action:compare", { targetSeat })}
+          onCopyRoomCode={copyRoomCode}
+          onLeave={requestLeaveRoom}
+          onInfo={setToast}
+        />
+        {leaveConfirmOpen && <LeaveConfirmDialog onCancel={() => setLeaveConfirmOpen(false)} onConfirm={leaveRoom} />}
+        <GameChatDock
+          open={gameChatOpen}
+          messages={chatMessages}
+          onlineCount={chatOnlineCount}
+          joined={chatJoined}
+          connected={connected}
+          account={authProfile.account}
+          draft={chatDraft}
+          onDraftChange={setChatDraft}
+          onSend={sendChatMessage}
+          onToggle={() => setGameChatOpen((current) => !current)}
+        />
+        <Toast message={toast} />
+      </div>
+    );
+  }
+
+  if (!room) {
+    return <Toast message={toast} />;
   }
 
   const isMyTurn = activeSeat === room.selfSeat;

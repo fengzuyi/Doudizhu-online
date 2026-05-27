@@ -7,6 +7,8 @@ import type { ChatMessage, ClientToServerEvents, ServerToClientEvents } from "@d
 import { AuthException, AuthManager } from "./authManager.js";
 import { GameException, RoomManager } from "./roomManager.js";
 import type { InternalRoom } from "./roomManager.js";
+import { ZjhRoomManager } from "./zjhRoomManager.js";
+import type { ZjhInternalRoom } from "./zjhRoomManager.js";
 import { createLogger } from "./logger.js";
 import type { AppLogger } from "./logger.js";
 
@@ -65,6 +67,7 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
   });
   const authManager = new AuthManager(options.authStorePath);
   const roomManager = new RoomManager();
+  const zjhRoomManager = new ZjhRoomManager();
   const chatMessages: ChatMessage[] = [];
   const chatSessions = new Map<string, { account: string; nickname: string }>();
   const cleanupOptions = {
@@ -137,6 +140,20 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
 
     for (const { socketId, roomView } of roomManager.buildViews(room)) {
       io.to(socketId).emit("room:state", { roomView });
+    }
+  }
+
+  function zjhSocketRoom(roomCode: string) {
+    return `zjh:${roomCode}`;
+  }
+
+  function emitZjhRoom(room: ZjhInternalRoom | undefined) {
+    if (!room) {
+      return;
+    }
+
+    for (const { socketId, roomView } of zjhRoomManager.buildViews(room)) {
+      io.to(socketId).emit("zjh:room:state", { roomView });
     }
   }
 
@@ -365,16 +382,154 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       leaveChat(socket.id);
     });
 
+    socket.on("zjh:room:create", (payload) => {
+      try {
+        const room = zjhRoomManager.createRoom(socket.id, payload.nickname, payload.maxPlayers);
+        socket.join(zjhSocketRoom(room.roomCode));
+        logger.info("zjh.room.created", {
+          roomCode: room.roomCode,
+          socketId: socket.id,
+          nickname: payload.nickname,
+          maxPlayers: room.maxPlayers
+        });
+        emitZjhRoom(room);
+      } catch (error) {
+        handleError(socket.id, error);
+      }
+    });
+
+    socket.on("zjh:room:join", (payload) => {
+      try {
+        const room = zjhRoomManager.joinRoom(socket.id, payload.roomCode, payload.nickname);
+        socket.join(zjhSocketRoom(room.roomCode));
+        logger.info("zjh.room.joined", { roomCode: room.roomCode, socketId: socket.id, nickname: payload.nickname });
+        emitZjhRoom(room);
+      } catch (error) {
+        handleError(socket.id, error);
+      }
+    });
+
+    socket.on("zjh:room:leave", () => {
+      try {
+        const room = zjhRoomManager.getRoomForSocket(socket.id);
+        if (room) {
+          socket.leave(zjhSocketRoom(room.roomCode));
+        }
+        const updatedRoom = zjhRoomManager.leaveRoom(socket.id);
+        logger.info("zjh.room.left", { roomCode: room?.roomCode, socketId: socket.id });
+        emitZjhRoom(updatedRoom);
+        if (updatedRoom?.phase === "ended" && updatedRoom.result) {
+          io.to(zjhSocketRoom(updatedRoom.roomCode)).emit("zjh:game:ended", {
+            result: updatedRoom.result,
+            message: updatedRoom.message
+          });
+        }
+      } catch (error) {
+        handleError(socket.id, error);
+      }
+    });
+
+    socket.on("zjh:game:ready", () => {
+      try {
+        const room = zjhRoomManager.ready(socket.id);
+        logger.info("zjh.game.ready", { roomCode: room.roomCode, socketId: socket.id, phase: room.phase });
+        emitZjhRoom(room);
+      } catch (error) {
+        handleError(socket.id, error);
+      }
+    });
+
+    socket.on("zjh:action:see", () => {
+      try {
+        const room = zjhRoomManager.seeCards(socket.id);
+        logger.info("zjh.action.see", { roomCode: room.roomCode, socketId: socket.id });
+        emitZjhRoom(room);
+      } catch (error) {
+        handleError(socket.id, error);
+      }
+    });
+
+    socket.on("zjh:action:call", () => {
+      try {
+        const room = zjhRoomManager.call(socket.id);
+        logger.info("zjh.action.call", { roomCode: room.roomCode, socketId: socket.id, pot: room.pot });
+        emitZjhRoom(room);
+        if (room.phase === "ended") {
+          io.to(zjhSocketRoom(room.roomCode)).emit("zjh:game:ended", { result: room.result, message: room.message });
+        }
+      } catch (error) {
+        handleError(socket.id, error);
+      }
+    });
+
+    socket.on("zjh:action:raise", (payload) => {
+      try {
+        const room = zjhRoomManager.raise(socket.id, payload.amount);
+        logger.info("zjh.action.raise", { roomCode: room.roomCode, socketId: socket.id, amount: payload.amount, pot: room.pot });
+        emitZjhRoom(room);
+        if (room.phase === "ended") {
+          io.to(zjhSocketRoom(room.roomCode)).emit("zjh:game:ended", { result: room.result, message: room.message });
+        }
+      } catch (error) {
+        handleError(socket.id, error);
+      }
+    });
+
+    socket.on("zjh:action:fold", () => {
+      try {
+        const room = zjhRoomManager.fold(socket.id);
+        logger.info("zjh.action.fold", { roomCode: room.roomCode, socketId: socket.id, phase: room.phase });
+        emitZjhRoom(room);
+        if (room.phase === "ended") {
+          io.to(zjhSocketRoom(room.roomCode)).emit("zjh:game:ended", { result: room.result, message: room.message });
+        }
+      } catch (error) {
+        handleError(socket.id, error);
+      }
+    });
+
+    socket.on("zjh:action:compare", (payload) => {
+      try {
+        const room = zjhRoomManager.compare(socket.id, payload.targetSeat);
+        logger.info("zjh.action.compare", {
+          roomCode: room.roomCode,
+          socketId: socket.id,
+          targetSeat: payload.targetSeat,
+          phase: room.phase
+        });
+        emitZjhRoom(room);
+        if (room.phase === "ended") {
+          io.to(zjhSocketRoom(room.roomCode)).emit("zjh:game:ended", { result: room.result, message: room.message });
+        }
+      } catch (error) {
+        handleError(socket.id, error);
+      }
+    });
+
     socket.on("disconnect", () => {
       leaveChat(socket.id);
       const room = roomManager.disconnect(socket.id);
-      logger.info("socket.disconnected", { socketId: socket.id, roomCode: room?.roomCode, phase: room?.phase });
+      const zjhRoom = zjhRoomManager.disconnect(socket.id);
+      if (zjhRoom) {
+        socket.leave(zjhSocketRoom(zjhRoom.roomCode));
+      }
+      logger.info("socket.disconnected", {
+        socketId: socket.id,
+        roomCode: room?.roomCode,
+        phase: room?.phase,
+        zjhRoomCode: zjhRoom?.roomCode,
+        zjhPhase: zjhRoom?.phase
+      });
       emitRoom(room);
       if (room?.phase === "ended" && room.message) {
         io.to(room.roomCode).emit("game:ended", { message: room.message });
       }
+      emitZjhRoom(zjhRoom);
+      if (zjhRoom?.phase === "ended" && zjhRoom.result) {
+        io.to(zjhSocketRoom(zjhRoom.roomCode)).emit("zjh:game:ended", { result: zjhRoom.result, message: zjhRoom.message });
+      }
     });
   });
 
-  return { app, httpServer, io, roomManager, authManager, logger, runMaintenance };
+  return { app, httpServer, io, roomManager, zjhRoomManager, authManager, logger, runMaintenance };
 }

@@ -3,7 +3,15 @@ import { io as createClient } from "socket.io-client";
 import type { AddressInfo } from "node:net";
 import type { Server as HttpServer } from "node:http";
 import type { Socket } from "socket.io-client";
-import type { ChatMessage, ClientToServerEvents, GameError, PlayerSeat, RoomView, ServerToClientEvents } from "@doudizhu/shared";
+import type {
+  ChatMessage,
+  ClientToServerEvents,
+  GameError,
+  PlayerSeat,
+  RoomView,
+  ServerToClientEvents,
+  ZjhRoomView
+} from "@doudizhu/shared";
 import { createGameServerWithOptions } from "./createGameServer.js";
 
 type ClientSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -17,6 +25,27 @@ function waitForState(socket: ClientSocket): Promise<RoomView> {
 function waitForChatState(socket: ClientSocket): Promise<{ messages: ChatMessage[]; onlineCount: number }> {
   return new Promise((resolve) => {
     socket.once("chat:state", resolve);
+  });
+}
+
+function waitForZjhState(socket: ClientSocket): Promise<ZjhRoomView> {
+  return new Promise((resolve) => {
+    socket.once("zjh:room:state", ({ roomView }) => resolve(roomView));
+  });
+}
+
+function waitForZjhStateWhere(socket: ClientSocket, predicate: (roomView: ZjhRoomView) => boolean): Promise<ZjhRoomView> {
+  return new Promise((resolve) => {
+    const handler = ({ roomView }: { roomView: ZjhRoomView }) => {
+      if (!predicate(roomView)) {
+        return;
+      }
+
+      socket.off("zjh:room:state", handler);
+      resolve(roomView);
+    };
+
+    socket.on("zjh:room:state", handler);
   });
 }
 
@@ -156,6 +185,44 @@ describe("socket game flow", () => {
     expect(view.phase).toBe("playing");
     expect(view.landlordSeat).toBe(highestBidSeat);
     expect(view.players.find((player) => player.seat === highestBidSeat)?.cardCount).toBe(20);
+  });
+
+  it("lets sockets create, join, ready, and play a zha jin hua room", async () => {
+    const [a, b] = await Promise.all([connectClient(baseUrl), connectClient(baseUrl)]);
+    clients = [a, b];
+
+    const createdState = waitForZjhState(a);
+    a.emit("zjh:room:create", { nickname: "甲", maxPlayers: 4 });
+    const roomCode = (await createdState).roomCode;
+
+    const joinedB = waitForZjhState(b);
+    b.emit("zjh:room:join", { roomCode, nickname: "乙" });
+    await joinedB;
+
+    const playingState = waitForZjhStateWhere(a, (roomView) => roomView.phase === "playing");
+    a.emit("zjh:game:ready");
+    b.emit("zjh:game:ready");
+    const state = await playingState;
+
+    expect(state.phase).toBe("playing");
+    expect(state.players).toHaveLength(2);
+    expect(state.pot).toBe(2);
+    expect(state.players.find((player) => player.seat === state.selfSeat)?.hand).toBeUndefined();
+
+    const currentTurn = state.currentTurn;
+    if (currentTurn === undefined) {
+      throw new Error("Missing zha jin hua current turn");
+    }
+
+    const socketsBySeat: Record<number, ClientSocket> = { 0: a, 1: b };
+    const afterSee = waitForZjhStateWhere(
+      socketsBySeat[currentTurn],
+      (roomView) => Boolean(roomView.players.find((player) => player.seat === currentTurn)?.hand)
+    );
+    socketsBySeat[currentTurn].emit("zjh:action:see");
+    const seenState = await afterSee;
+
+    expect(seenState.players.find((player) => player.seat === currentTurn)?.hand).toHaveLength(3);
   });
 
   it("rejects chat messages before a socket joins chat", async () => {

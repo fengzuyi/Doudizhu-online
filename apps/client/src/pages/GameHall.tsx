@@ -13,16 +13,20 @@ import {
   UserRound
 } from "lucide-react";
 import { type FormEvent, useEffect, useRef } from "react";
-import type { ChatMessage } from "@doudizhu/shared";
+import type { ChatMessage, GameKind } from "@doudizhu/shared";
 import type { AuthProfile } from "./LoginPage.js";
 
 interface GameHallProps {
   profile: AuthProfile;
   connected: boolean;
+  selectedGame: GameKind;
+  zjhMaxPlayers: number;
   roomCodeInput: string;
+  onGameSelect: (game: GameKind) => void;
+  onZjhMaxPlayersChange: (value: number) => void;
   onRoomCodeInputChange: (value: string) => void;
-  onCreateDoudizhuRoom: () => void;
-  onJoinDoudizhuRoom: () => void;
+  onCreateRoom: () => void;
+  onJoinRoom: () => void;
   onUnavailable: (gameName: string) => void;
   onInfo: (message: string) => void;
   onLogout: () => void;
@@ -36,20 +40,23 @@ interface GameHallProps {
 
 const games = [
   {
+    kind: "doudizhu" as const,
     name: "斗地主",
-    description: "三人好友局，适合最常用的朋友开黑玩法。",
-    action: "开始",
+    description: "三人好友局，轮流叫分，服务端判定出牌。",
+    action: "选择",
     available: true,
     Icon: Crown
   },
   {
+    kind: "zha_jin_hua" as const,
     name: "炸金花",
-    description: "短局轻松，适合几个人快速来一把。",
-    action: "敬请期待",
-    available: false,
+    description: "2-12 人三张牌局，支持看牌、跟注、加注、比牌和弃牌。",
+    action: "选择",
+    available: true,
     Icon: CircleDot
   },
   {
+    kind: "mahjong" as const,
     name: "麻将",
     description: "好友同桌，适合慢节奏休闲对局。",
     action: "敬请期待",
@@ -57,6 +64,7 @@ const games = [
     Icon: Blocks
   },
   {
+    kind: "paodekuai" as const,
     name: "跑得快",
     description: "规则简单，适合碎片时间一起玩。",
     action: "敬请期待",
@@ -65,6 +73,11 @@ const games = [
   }
 ];
 
+const selectedGameName: Record<GameKind, string> = {
+  doudizhu: "斗地主",
+  zha_jin_hua: "炸金花"
+};
+
 function avatarText(nickname: string) {
   return nickname.trim().slice(0, 1).toUpperCase() || "玩";
 }
@@ -72,10 +85,14 @@ function avatarText(nickname: string) {
 export function GameHall({
   profile,
   connected,
+  selectedGame,
+  zjhMaxPlayers,
   roomCodeInput,
+  onGameSelect,
+  onZjhMaxPlayersChange,
   onRoomCodeInputChange,
-  onCreateDoudizhuRoom,
-  onJoinDoudizhuRoom,
+  onCreateRoom,
+  onJoinRoom,
   onUnavailable,
   onInfo,
   onLogout,
@@ -88,6 +105,7 @@ export function GameHall({
 }: GameHallProps) {
   const avatar = avatarText(profile.nickname);
   const messagesRef = useRef<HTMLDivElement | null>(null);
+  const currentGameName = selectedGameName[selectedGame];
 
   useEffect(() => {
     const node = messagesRef.current;
@@ -104,7 +122,7 @@ export function GameHall({
 
   function handleJoinSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    onJoinDoudizhuRoom();
+    onJoinRoom();
   }
 
   function handleChatSubmit(event: FormEvent<HTMLFormElement>) {
@@ -156,16 +174,28 @@ export function GameHall({
                 </span>
                 <div>
                   <h2>{profile.nickname}</h2>
-                  <p>账号玩家 · ID 30216</p>
+                  <p>账号玩家 · {profile.account}</p>
                 </div>
               </div>
             </section>
 
             <section className="friends-room-card" aria-label="房间">
-              <h3>房间</h3>
-              <button className="friends-primary-button" type="button" onClick={onCreateDoudizhuRoom} disabled={!connected}>
+              <h3>{currentGameName}房间</h3>
+              {selectedGame === "zha_jin_hua" && (
+                <label className="friends-room-select">
+                  人数上限
+                  <select value={zjhMaxPlayers} onChange={(event) => onZjhMaxPlayersChange(Number(event.target.value))}>
+                    {[2, 3, 4, 5, 6, 8, 10, 12].map((count) => (
+                      <option value={count} key={count}>
+                        {count} 人
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <button className="friends-primary-button" type="button" onClick={onCreateRoom} disabled={!connected}>
                 <Plus size={18} aria-hidden="true" />
-                创建好友房
+                创建{currentGameName}房
               </button>
               <form className="friends-room-form" onSubmit={handleJoinSubmit}>
                 <label>
@@ -174,7 +204,7 @@ export function GameHall({
                     value={roomCodeInput}
                     maxLength={4}
                     onChange={(event) => onRoomCodeInputChange(event.target.value.toUpperCase())}
-                    placeholder="输入房间号加入"
+                    placeholder={`输入${currentGameName}房间号`}
                     autoComplete="off"
                     disabled={!connected}
                   />
@@ -185,7 +215,6 @@ export function GameHall({
                 </button>
               </form>
             </section>
-
           </aside>
 
           <section className="friends-panel friends-center-panel">
@@ -203,14 +232,15 @@ export function GameHall({
 
             <div className="friends-section-head">
               <h3>选择游戏</h3>
-              <span>好友局模式</span>
+              <span>{currentGameName} · 好友房模式</span>
             </div>
 
             <div className="friends-game-grid">
               {games.map((game) => {
                 const Icon = game.Icon;
+                const selected = game.kind === selectedGame;
                 return (
-                  <article className="friends-game-card" key={game.name}>
+                  <article className={`friends-game-card ${selected ? "selected" : ""}`} key={game.name}>
                     <span className="friends-game-icon">
                       <Icon size={26} aria-hidden="true" />
                     </span>
@@ -219,12 +249,12 @@ export function GameHall({
                     <button
                       type="button"
                       onClick={
-                        game.available
-                          ? () => onInfo("请在左侧房间区创建或加入斗地主好友房。")
+                        game.kind === "doudizhu" || game.kind === "zha_jin_hua"
+                          ? () => onGameSelect(game.kind)
                           : () => onUnavailable(game.name)
                       }
                     >
-                      {game.action}
+                      {selected ? "已选择" : game.action}
                     </button>
                   </article>
                 );

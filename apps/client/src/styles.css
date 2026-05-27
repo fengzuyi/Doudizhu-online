@@ -3173,3 +3173,467 @@ button.playing-card.selectable:hover:not(:disabled) {
     max-height: min(430px, calc(100dvh - 88px));
   }
 }
+
+.friends-room-select {
+  margin-bottom: 14px;
+}
+
+.friends-room-select select {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid rgba(29, 23, 16, 0.18);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #fffdf6;
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.friends-game-card.selected {
+  border-color: rgba(101, 189, 153, 0.68);
+  background:
+    linear-gradient(180deg, rgba(236, 250, 244, 0.98), rgba(255, 253, 246, 0.98)),
+    #fffdf6;
+  box-shadow:
+    inset 0 0 0 2px rgba(101, 189, 153, 0.2),
+    0 18px 38px rgba(61, 139, 107, 0.14);
+}
+
+.zjh-game-shell {
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 16% 12%, rgba(255, 217, 122, 0.2), transparent 24%),
+    linear-gradient(135deg, #f5fbf7 0%, #fff8ea 56%, #eaf6f2 100%);
+  color: #1c2b2a;
+}
+
+.zjh-header {
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 24px;
+  border-bottom: 1px solid rgba(23, 57, 43, 0.12);
+  background: rgba(245, 251, 247, 0.92);
+  backdrop-filter: blur(14px);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.zjh-header-left,
+.zjh-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.zjh-brand {
+  color: #0f6f4d;
+  font-size: clamp(24px, 3vw, 38px);
+  line-height: 1;
+  margin-right: 8px;
+}
+
+.zjh-pill {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(23, 57, 43, 0.12);
+  border-radius: 999px;
+  padding: 0 12px;
+  background: rgba(222, 228, 224, 0.82);
+  color: #34433d;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.zjh-pill.room button {
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  box-shadow: none;
+}
+
+.zjh-main {
+  min-height: calc(100dvh - 76px);
+  padding: 18px;
+}
+
+.zjh-table {
+  min-height: calc(100dvh - 112px);
+  border: 10px solid rgba(23, 57, 43, 0.08);
+  border-radius: 22px;
+  overflow: hidden;
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(150px, auto) minmax(230px, 1fr) auto;
+  gap: 14px;
+  padding: 24px;
+  background:
+    linear-gradient(rgba(26, 107, 78, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(26, 107, 78, 0.05) 1px, transparent 1px),
+    #eff8f3;
+  background-size: 42px 42px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.78),
+    0 22px 70px rgba(12, 47, 33, 0.12);
+}
+
+.zjh-opponents {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+
+.zjh-seat,
+.zjh-empty-seat {
+  min-height: 132px;
+  border: 1px solid rgba(23, 57, 43, 0.12);
+  border-radius: 8px;
+  padding: 14px;
+  background: rgba(255, 253, 246, 0.94);
+  color: #263a38;
+  box-shadow: 0 16px 34px rgba(32, 62, 49, 0.12);
+}
+
+.zjh-seat.active {
+  border-color: rgba(101, 189, 153, 0.8);
+  box-shadow:
+    inset 0 0 0 3px rgba(101, 189, 153, 0.18),
+    0 16px 34px rgba(32, 62, 49, 0.16);
+}
+
+.zjh-seat.folded {
+  opacity: 0.62;
+}
+
+.zjh-seat.self {
+  min-width: 220px;
+}
+
+.zjh-seat-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  color: #6a5437;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.zjh-seat-head span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: #3d2b18;
+  color: #ffd97a;
+}
+
+.zjh-seat h3 {
+  margin: 10px 0 6px;
+  color: #122c27;
+  font-size: 24px;
+}
+
+.zjh-seat p,
+.zjh-seat em {
+  margin: 4px 0 0;
+  color: #5d6f69;
+  font-style: normal;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.zjh-seat em {
+  color: #9a312c;
+}
+
+.zjh-empty-seat {
+  display: grid;
+  place-items: center;
+  color: #6a7c75;
+  font-weight: 900;
+  background: rgba(255, 255, 255, 0.52);
+  border-style: dashed;
+}
+
+.zjh-center {
+  align-self: center;
+  justify-self: center;
+  width: min(100%, 820px);
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+}
+
+.zjh-pot {
+  min-width: 190px;
+  min-height: 118px;
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 18px 34px;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(255, 217, 122, 0.45), transparent 60%),
+    rgba(15, 111, 77, 0.92);
+  color: #fffdf6;
+  box-shadow: 0 20px 44px rgba(15, 111, 77, 0.24);
+}
+
+.zjh-pot span,
+.zjh-pot small {
+  color: rgba(255, 253, 246, 0.82);
+  font-weight: 900;
+}
+
+.zjh-pot strong {
+  font-size: 46px;
+  line-height: 1;
+}
+
+.zjh-message,
+.zjh-waiting {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 0 18px;
+  background: rgba(255, 253, 246, 0.92);
+  border: 1px solid rgba(23, 57, 43, 0.1);
+  color: #0f6f4d;
+  font-weight: 900;
+  text-align: center;
+}
+
+.zjh-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  border-radius: 999px;
+  padding: 12px;
+  background: rgba(245, 251, 247, 0.88);
+  box-shadow: 0 16px 40px rgba(32, 62, 49, 0.14);
+}
+
+.zjh-actions > span {
+  color: #5d6f69;
+  font-weight: 900;
+  padding: 0 8px;
+}
+
+.zjh-raise-group,
+.zjh-compare-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.zjh-self-zone {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 18px;
+  min-width: 0;
+}
+
+.zjh-hand {
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  flex-wrap: nowrap;
+  padding: 8px 0 2px;
+}
+
+.zjh-card,
+.zjh-card-back {
+  width: 92px;
+  height: 130px;
+  margin-left: -16px;
+  flex: 0 0 auto;
+}
+
+.zjh-card:first-child,
+.zjh-card-back:first-child {
+  margin-left: 0;
+}
+
+.zjh-card .card-center-suit {
+  font-size: 34px;
+}
+
+.zjh-hand-placeholder {
+  min-height: 52px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 20px;
+  background: rgba(255, 253, 246, 0.92);
+  color: #5d6f69;
+  font-weight: 900;
+}
+
+.zjh-result-dialog {
+  width: min(720px, calc(100vw - 28px));
+}
+
+.zjh-result-hands {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.zjh-result-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(255, 253, 246, 0.88);
+  color: var(--ink);
+}
+
+.zjh-result-row > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.zjh-result-row span {
+  color: #667872;
+  font-weight: 800;
+}
+
+.zjh-result-row .zjh-card {
+  width: 46px;
+  height: 66px;
+  margin-left: -10px;
+}
+
+.zjh-result-row .card-center-suit {
+  font-size: 18px;
+}
+
+@media (max-width: 980px) {
+  .zjh-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .zjh-header-actions {
+    width: 100%;
+  }
+
+  .zjh-table {
+    padding: 16px;
+    grid-template-rows: auto minmax(220px, 1fr) auto;
+  }
+
+  .zjh-self-zone {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .zjh-seat.self {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .zjh-main {
+    padding: 10px;
+  }
+
+  .zjh-header {
+    padding: 12px;
+  }
+
+  .zjh-header-left,
+  .zjh-header-actions {
+    width: 100%;
+  }
+
+  .zjh-brand {
+    width: 100%;
+    text-align: center;
+  }
+
+  .zjh-pill,
+  .zjh-header-actions > * {
+    flex: 1 1 calc(50% - 8px);
+    justify-content: center;
+  }
+
+  .zjh-table {
+    border-width: 6px;
+    border-radius: 18px;
+    padding: 12px;
+    min-height: calc(100dvh - 190px);
+  }
+
+  .zjh-opponents {
+    grid-template-columns: 1fr;
+  }
+
+  .zjh-seat,
+  .zjh-empty-seat {
+    min-height: 104px;
+  }
+
+  .zjh-center {
+    gap: 12px;
+  }
+
+  .zjh-pot {
+    min-width: 148px;
+    min-height: 96px;
+  }
+
+  .zjh-pot strong {
+    font-size: 36px;
+  }
+
+  .zjh-actions {
+    border-radius: 18px;
+  }
+
+  .zjh-actions button,
+  .zjh-raise-group button,
+  .zjh-compare-group button {
+    flex: 1 1 calc(50% - 8px);
+  }
+
+  .zjh-hand {
+    overflow-x: auto;
+    justify-content: flex-start;
+    padding-bottom: 10px;
+  }
+
+  .zjh-card,
+  .zjh-card-back {
+    width: 76px;
+    height: 108px;
+    margin-left: -12px;
+  }
+
+  .zjh-result-row {
+    grid-template-columns: 1fr;
+  }
+}
