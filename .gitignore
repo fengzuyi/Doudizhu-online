@@ -4,8 +4,8 @@ apps/*/dist/
 packages/*/dist/
 apps/server/data/
 *.log
+apps/server/logs/
 .env
 .env.*
 PROJECT_PLAN.md
 炸金花规则设计文档.md
-DEPLOYMENT.md

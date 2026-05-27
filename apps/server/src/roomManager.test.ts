@@ -148,4 +148,24 @@ describe("RoomManager", () => {
     expect(() => manager.joinRoom("s4", room.roomCode, "丁")).not.toThrow();
     expect(room.players[1]?.nickname).toBe("丁");
   });
+
+  it("cleans up stale ended rooms and clears socket mappings", () => {
+    const { manager, room } = preparePlayingRoom();
+
+    manager.disconnect("s2");
+    const removed = manager.cleanupRooms(Date.now() + 31 * 60_000, {
+      endedRoomTtlMs: 30 * 60_000
+    });
+
+    expect(removed).toEqual([
+      {
+        roomCode: room.roomCode,
+        reason: "ended",
+        socketIds: ["s1", "s2", "s3"]
+      }
+    ]);
+    expect(manager.getRoomForTest(room.roomCode)).toBeUndefined();
+    expect(manager.getRoomForSocket("s1")).toBeUndefined();
+    expect(manager.getRoomForSocket("s3")).toBeUndefined();
+  });
 });

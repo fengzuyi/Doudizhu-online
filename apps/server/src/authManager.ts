@@ -1,6 +1,6 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export interface AuthProfile {
@@ -23,6 +23,12 @@ interface AccountRecord {
 
 interface AuthStoreFile {
   accounts: AccountRecord[];
+}
+
+interface BackupOptions {
+  backupDir?: string;
+  keep?: number;
+  now?: Date;
 }
 
 export class AuthException extends Error {
@@ -134,6 +140,36 @@ export class AuthManager {
     }
   }
 
+  getAccountCount() {
+    return this.accounts.size;
+  }
+
+  getStorePath() {
+    return this.storePath;
+  }
+
+  backupAccounts(options: BackupOptions = {}) {
+    if (!this.storePath || !existsSync(this.storePath)) {
+      return undefined;
+    }
+
+    const backupDir = options.backupDir ?? process.env.AUTH_BACKUP_DIR ?? join(dirname(this.storePath), "backups");
+    const keep = options.keep ?? Number(process.env.AUTH_BACKUP_KEEP ?? 20);
+    const now = options.now ?? new Date();
+    mkdirSync(backupDir, { recursive: true });
+
+    const stamp = now.toISOString().replace(/[:.]/g, "-");
+    const sourceName = basename(this.storePath);
+    const backupPath = join(backupDir, `${sourceName}.${stamp}.bak`);
+    copyFileSync(this.storePath, backupPath);
+    this.pruneBackups(backupDir, sourceName, Number.isFinite(keep) && keep > 0 ? keep : 20);
+
+    return {
+      path: backupPath,
+      accountCount: this.accounts.size
+    };
+  }
+
   private createSession(account: string): AuthSuccess {
     const record = this.accounts.get(account);
     if (!record) {
@@ -179,6 +215,21 @@ export class AuthManager {
       accounts: [...this.accounts.values()]
     };
     writeFileSync(this.storePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  }
+
+  private pruneBackups(backupDir: string, sourceName: string, keep: number) {
+    const prefix = `${sourceName}.`;
+    const backups = readdirSync(backupDir)
+      .filter((name) => name.startsWith(prefix) && name.endsWith(".bak"))
+      .map((name) => {
+        const path = join(backupDir, name);
+        return { name, path, mtime: statSync(path).mtimeMs };
+      })
+      .sort((a, b) => b.name.localeCompare(a.name) || b.mtime - a.mtime);
+
+    for (const item of backups.slice(keep)) {
+      unlinkSync(item.path);
+    }
   }
 }
 

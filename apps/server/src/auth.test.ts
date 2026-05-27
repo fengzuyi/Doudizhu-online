@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AddressInfo } from "node:net";
 import type { Server as HttpServer } from "node:http";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createGameServerWithOptions } from "./createGameServer.js";
+import type { AuthManager } from "./authManager.js";
 
 async function postJson(baseUrl: string, path: string, body: unknown, token?: string) {
   const response = await fetch(`${baseUrl}${path}`, {
@@ -38,12 +39,14 @@ describe("auth API", () => {
   let baseUrl = "";
   let tempDir = "";
   let authStorePath = "";
+  let authManager: AuthManager;
 
   beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), "doudizhu-auth-"));
     authStorePath = join(tempDir, "auth-store.json");
     const created = createGameServerWithOptions({ authStorePath });
     httpServer = created.httpServer;
+    authManager = created.authManager;
 
     await new Promise<void>((resolve) => {
       httpServer.listen(0, resolve);
@@ -189,5 +192,27 @@ describe("auth API", () => {
     const me = await getJson(baseUrl, "/api/auth/me", token);
     expect(me.status).toBe(401);
     expect(me.body).toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
+  it("creates and prunes auth store backups", async () => {
+    await postJson(baseUrl, "/api/auth/register", {
+      account: "player001",
+      nickname: "玩家一号",
+      password: "secret"
+    });
+
+    const first = authManager.backupAccounts({
+      keep: 1,
+      now: new Date("2026-05-27T00:00:00.000Z")
+    });
+    const second = authManager.backupAccounts({
+      keep: 1,
+      now: new Date("2026-05-27T00:01:00.000Z")
+    });
+
+    expect(first).toBeDefined();
+    expect(second).toBeDefined();
+    expect(existsSync(second!.path)).toBe(true);
+    expect(readdirSync(join(tempDir, "backups")).filter((name) => name.endsWith(".bak"))).toHaveLength(1);
   });
 });

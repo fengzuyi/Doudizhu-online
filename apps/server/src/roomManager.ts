@@ -48,6 +48,9 @@ interface LastPlay {
 
 export interface InternalRoom extends RoomState {
   players: [InternalPlayer | null, InternalPlayer | null, InternalPlayer | null];
+  createdAt: number;
+  updatedAt: number;
+  endedAt?: number;
   bottomCards: Card[];
   landlordSeat?: PlayerSeat;
   currentTurn?: PlayerSeat;
@@ -60,6 +63,18 @@ export interface InternalRoom extends RoomState {
   turnLog: PublicPlay[];
   result?: RoundResult;
   message?: string;
+}
+
+export interface RoomCleanupOptions {
+  emptyRoomTtlMs: number;
+  endedRoomTtlMs: number;
+  lobbyRoomTtlMs: number;
+}
+
+export interface RoomCleanupResult {
+  roomCode: string;
+  reason: "empty" | "ended" | "idle_lobby";
+  socketIds: string[];
 }
 
 export class GameException extends Error {
@@ -101,10 +116,13 @@ export class RoomManager {
 
     const roomCode = this.generateRoomCode();
     const player = this.createPlayer(socketId, normalizeNickname(nickname), 0);
+    const now = Date.now();
     const room: InternalRoom = {
       roomCode,
       phase: "lobby",
       playerCount: 1,
+      createdAt: now,
+      updatedAt: now,
       players: [player, null, null],
       bottomCards: [],
       passCount: 0,
@@ -141,6 +159,7 @@ export class RoomManager {
     room.players[seat] = player;
     this.socketToRoom.set(socketId, room.roomCode);
     this.syncPlayerCount(room);
+    this.touch(room);
     room.message = "三名玩家准备后开始发牌。";
     this.pushSystem(room, `${player.nickname} 加入了房间。`);
 
@@ -159,6 +178,7 @@ export class RoomManager {
     if (room.phase === "lobby" || room.phase === "ended") {
       room.players[player.seat] = null;
       this.syncPlayerCount(room);
+      this.touch(room);
       this.pushSystem(room, `${player.nickname} 离开了房间。`);
 
       if (room.playerCount === 0) {
@@ -173,11 +193,13 @@ export class RoomManager {
     player.ready = false;
     this.syncPlayerCount(room);
     room.phase = "ended";
+    room.endedAt = Date.now();
     room.currentTurn = undefined;
     room.bid = undefined;
     room.lastPlay = undefined;
     room.message = `${player.nickname} 离线，本局已结束。`;
     this.pushSystem(room, room.message);
+    this.touch(room);
 
     return room;
   }
@@ -200,6 +222,7 @@ export class RoomManager {
 
     player.ready = true;
     player.lastAction = "已准备";
+    this.touch(room);
     room.message = "等待所有玩家准备。";
     this.pushSystem(room, `${player.nickname} 已准备。`);
 
@@ -235,6 +258,7 @@ export class RoomManager {
     }
 
     room.bid.actedSeats = [...room.bid.actedSeats, player.seat];
+    this.touch(room);
 
     if (score === 0) {
       player.lastAction = "不叫";
@@ -301,6 +325,7 @@ export class RoomManager {
 
     const selectedIds = new Set(selectedCards.map((card) => card.id));
     player.hand = player.hand.filter((card) => !selectedIds.has(card.id));
+    this.touch(room);
 
     if (validation.analysis.type === "bomb" || validation.analysis.type === "rocket") {
       room.multiplier *= 2;
@@ -354,6 +379,7 @@ export class RoomManager {
     }
 
     player.lastAction = "不出";
+    this.touch(room);
     this.pushLog(
       room,
       makeLogEvent({
@@ -389,6 +415,47 @@ export class RoomManager {
 
   getRoomForTest(roomCode: string): InternalRoom | undefined {
     return this.rooms.get(roomCode);
+  }
+
+  getRoomCount() {
+    return this.rooms.size;
+  }
+
+  cleanupRooms(now = Date.now(), options: Partial<RoomCleanupOptions> = {}): RoomCleanupResult[] {
+    const resolved: RoomCleanupOptions = {
+      emptyRoomTtlMs: options.emptyRoomTtlMs ?? 60_000,
+      endedRoomTtlMs: options.endedRoomTtlMs ?? 30 * 60_000,
+      lobbyRoomTtlMs: options.lobbyRoomTtlMs ?? 2 * 60 * 60_000
+    };
+    const removed: RoomCleanupResult[] = [];
+
+    for (const room of this.rooms.values()) {
+      const connectedCount = this.connectedPlayers(room).length;
+      const idleFor = now - room.updatedAt;
+      const endedFor = room.endedAt === undefined ? 0 : now - room.endedAt;
+      let reason: RoomCleanupResult["reason"] | undefined;
+
+      if (connectedCount === 0 && idleFor >= resolved.emptyRoomTtlMs) {
+        reason = "empty";
+      } else if (room.phase === "ended" && endedFor >= resolved.endedRoomTtlMs) {
+        reason = "ended";
+      } else if (room.phase === "lobby" && idleFor >= resolved.lobbyRoomTtlMs) {
+        reason = "idle_lobby";
+      }
+
+      if (!reason) {
+        continue;
+      }
+
+      const socketIds = room.players.flatMap((player) => (player ? [player.socketId] : []));
+      for (const socketId of socketIds) {
+        this.socketToRoom.delete(socketId);
+      }
+      this.rooms.delete(room.roomCode);
+      removed.push({ roomCode: room.roomCode, reason, socketIds });
+    }
+
+    return removed;
   }
 
   buildViews(room: InternalRoom): Array<{ socketId: string; roomView: RoomView }> {
@@ -472,6 +539,10 @@ export class RoomManager {
     room.playerCount = this.connectedPlayers(room).length;
   }
 
+  private touch(room: InternalRoom): void {
+    room.updatedAt = Date.now();
+  }
+
   private resetToLobby(room: InternalRoom): void {
     for (const seat of SEATS) {
       const player = room.players[seat];
@@ -482,6 +553,7 @@ export class RoomManager {
 
     this.syncPlayerCount(room);
     room.phase = "lobby";
+    room.endedAt = undefined;
     room.bottomCards = [];
     room.landlordSeat = undefined;
     room.currentTurn = undefined;
@@ -494,6 +566,7 @@ export class RoomManager {
     room.result = undefined;
     room.message = "准备后开始下一局。";
     room.turnLog = [];
+    this.touch(room);
 
     for (const player of room.players) {
       if (player) {
@@ -517,6 +590,7 @@ export class RoomManager {
     }
 
     room.phase = "bidding";
+    room.endedAt = undefined;
     room.bottomCards = bottomCards;
     room.landlordSeat = undefined;
     room.currentTurn = undefined;
@@ -534,6 +608,7 @@ export class RoomManager {
     room.result = undefined;
     room.message = message;
     room.turnLog = [];
+    this.touch(room);
     this.pushSystem(room, message);
   }
 
@@ -546,12 +621,14 @@ export class RoomManager {
     landlord.hand = sortCards([...landlord.hand, ...room.bottomCards]);
 
     room.phase = "playing";
+    room.endedAt = undefined;
     room.landlordSeat = landlordSeat;
     room.currentTurn = landlordSeat;
     room.bid = undefined;
     room.lastPlay = undefined;
     room.passCount = 0;
     room.message = `${landlord.nickname} 成为地主，开始出牌。`;
+    this.touch(room);
     this.pushSystem(room, room.message);
   }
 
@@ -562,10 +639,12 @@ export class RoomManager {
 
     const result = calculateRoundResult(room.landlordSeat, winnerSeat, room.multiplier);
     room.phase = "ended";
+    room.endedAt = Date.now();
     room.currentTurn = undefined;
     room.bid = undefined;
     room.result = result;
     room.message = `${this.requirePlayerBySeat(room, winnerSeat).nickname} 出完手牌，本局结束。`;
+    this.touch(room);
     this.pushSystem(room, room.message);
 
     return result;

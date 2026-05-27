@@ -7,6 +7,8 @@ import type { ChatMessage, ClientToServerEvents, ServerToClientEvents } from "@d
 import { AuthException, AuthManager } from "./authManager.js";
 import { GameException, RoomManager } from "./roomManager.js";
 import type { InternalRoom } from "./roomManager.js";
+import { createLogger } from "./logger.js";
+import type { AppLogger } from "./logger.js";
 
 function getBearerToken(header: string | undefined) {
   if (!header?.startsWith("Bearer ")) {
@@ -39,7 +41,19 @@ export function createGameServer() {
   return createGameServerWithOptions();
 }
 
-export function createGameServerWithOptions(options: { authStorePath?: string | null } = {}) {
+interface GameServerOptions {
+  authStorePath?: string | null;
+  logger?: AppLogger;
+  disableMaintenance?: boolean;
+}
+
+function numberFromEnv(name: string, fallback: number) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+export function createGameServerWithOptions(options: GameServerOptions = {}) {
+  const logger = options.logger ?? createLogger();
   const app = express();
   const httpServer = createServer(app);
   const clientOrigins = getClientOrigins();
@@ -53,6 +67,14 @@ export function createGameServerWithOptions(options: { authStorePath?: string | 
   const roomManager = new RoomManager();
   const chatMessages: ChatMessage[] = [];
   const chatSessions = new Map<string, { account: string; nickname: string }>();
+  const cleanupOptions = {
+    emptyRoomTtlMs: numberFromEnv("EMPTY_ROOM_TTL_MS", 60_000),
+    endedRoomTtlMs: numberFromEnv("ENDED_ROOM_TTL_MS", 30 * 60_000),
+    lobbyRoomTtlMs: numberFromEnv("LOBBY_ROOM_TTL_MS", 2 * 60 * 60_000)
+  };
+  const roomCleanupIntervalMs = numberFromEnv("ROOM_CLEANUP_INTERVAL_MS", 5 * 60_000);
+  const authBackupIntervalMs = numberFromEnv("AUTH_BACKUP_INTERVAL_MS", 6 * 60 * 60_000);
+  let nextAuthBackupAt = Date.now() + authBackupIntervalMs;
 
   app.use(cors({ origin: clientOrigins }));
   app.use(express.json());
@@ -62,17 +84,21 @@ export function createGameServerWithOptions(options: { authStorePath?: string | 
 
   function sendAuthError(response: express.Response, error: unknown) {
     if (error instanceof AuthException) {
+      logger.warn("auth.request_failed", { code: error.code, status: error.status });
       response.status(error.status).json({ code: error.code, message: error.message });
       return;
     }
 
     const message = error instanceof Error ? error.message : "服务器发生未知错误。";
+    logger.error("auth.server_error", { error });
     response.status(500).json({ code: "SERVER_ERROR", message });
   }
 
   app.post("/api/auth/register", (request, response) => {
     try {
-      response.json(authManager.register(request.body));
+      const result = authManager.register(request.body);
+      logger.info("auth.registered", { account: result.profile.account, nickname: result.profile.nickname });
+      response.json(result);
     } catch (error) {
       sendAuthError(response, error);
     }
@@ -80,7 +106,9 @@ export function createGameServerWithOptions(options: { authStorePath?: string | 
 
   app.post("/api/auth/login", (request, response) => {
     try {
-      response.json(authManager.login(request.body));
+      const result = authManager.login(request.body);
+      logger.info("auth.login", { account: result.profile.account, nickname: result.profile.nickname });
+      response.json(result);
     } catch (error) {
       sendAuthError(response, error);
     }
@@ -98,6 +126,7 @@ export function createGameServerWithOptions(options: { authStorePath?: string | 
   app.post("/api/auth/logout", (request, response) => {
     const token = getBearerToken(request.headers.authorization);
     authManager.logout(token);
+    logger.info("auth.logout");
     response.json({ ok: true });
   });
 
@@ -113,11 +142,13 @@ export function createGameServerWithOptions(options: { authStorePath?: string | 
 
   function handleError(socketId: string, error: unknown) {
     if (error instanceof GameException) {
+      logger.warn("game.action_failed", { socketId, code: error.code });
       io.to(socketId).emit("game:error", { code: error.code, message: error.message });
       return;
     }
 
     const message = error instanceof Error ? error.message : "服务器发生未知错误。";
+    logger.error("game.server_error", { socketId, error });
     io.to(socketId).emit("game:error", { code: "SERVER_ERROR", message });
   }
 
@@ -129,6 +160,7 @@ export function createGameServerWithOptions(options: { authStorePath?: string | 
   }
 
   function emitChatError(socketId: string, code: string, message: string) {
+    logger.warn("chat.action_failed", { socketId, code });
     io.to(socketId).emit("chat:error", { code, message });
   }
 
@@ -137,14 +169,68 @@ export function createGameServerWithOptions(options: { authStorePath?: string | 
     if (wasInChat) {
       io.sockets.sockets.get(socketId)?.leave(CHAT_ROOM);
       emitChatState();
+      logger.info("chat.left", { socketId, onlineCount: chatSessions.size });
     }
   }
 
+  function notifyCleanedRoom(roomCode: string, socketIds: string[]) {
+    for (const socketId of socketIds) {
+      const client = io.sockets.sockets.get(socketId);
+      client?.leave(roomCode);
+      client?.emit("game:error", {
+        code: "ROOM_CLEANED_UP",
+        message: "房间长时间无操作，已自动清理。"
+      });
+    }
+  }
+
+  function runMaintenance() {
+    const removedRooms = roomManager.cleanupRooms(Date.now(), cleanupOptions);
+    for (const removedRoom of removedRooms) {
+      notifyCleanedRoom(removedRoom.roomCode, removedRoom.socketIds);
+      logger.info("room.cleaned_up", {
+        roomCode: removedRoom.roomCode,
+        reason: removedRoom.reason,
+        socketCount: removedRoom.socketIds.length,
+        roomCount: roomManager.getRoomCount()
+      });
+    }
+
+    const now = Date.now();
+    if (now >= nextAuthBackupAt) {
+      try {
+        const backup = authManager.backupAccounts();
+        if (backup) {
+          logger.info("auth.backup_created", { path: backup.path, accountCount: backup.accountCount });
+        }
+      } catch (error) {
+        logger.error("auth.backup_failed", { error });
+      } finally {
+        nextAuthBackupAt = now + authBackupIntervalMs;
+      }
+    }
+  }
+
+  if (!options.disableMaintenance) {
+    const maintenanceTimer = setInterval(runMaintenance, roomCleanupIntervalMs);
+    maintenanceTimer.unref();
+    httpServer.on("close", () => clearInterval(maintenanceTimer));
+    logger.info("maintenance.started", {
+      roomCleanupIntervalMs,
+      authBackupIntervalMs,
+      cleanupOptions,
+      authStorePath: authManager.getStorePath()
+    });
+  }
+
   io.on("connection", (socket) => {
+    logger.info("socket.connected", { socketId: socket.id });
+
     socket.on("room:create", (payload) => {
       try {
         const room = roomManager.createRoom(socket.id, payload.nickname);
         socket.join(room.roomCode);
+        logger.info("room.created", { roomCode: room.roomCode, socketId: socket.id, nickname: payload.nickname });
         emitRoom(room);
       } catch (error) {
         handleError(socket.id, error);
@@ -155,6 +241,7 @@ export function createGameServerWithOptions(options: { authStorePath?: string | 
       try {
         const room = roomManager.joinRoom(socket.id, payload.roomCode, payload.nickname);
         socket.join(room.roomCode);
+        logger.info("room.joined", { roomCode: room.roomCode, socketId: socket.id, nickname: payload.nickname });
         emitRoom(room);
       } catch (error) {
         handleError(socket.id, error);
@@ -167,7 +254,9 @@ export function createGameServerWithOptions(options: { authStorePath?: string | 
         if (room) {
           socket.leave(room.roomCode);
         }
-        emitRoom(roomManager.leaveRoom(socket.id));
+        const updatedRoom = roomManager.leaveRoom(socket.id);
+        logger.info("room.left", { roomCode: room?.roomCode, socketId: socket.id });
+        emitRoom(updatedRoom);
       } catch (error) {
         handleError(socket.id, error);
       }
@@ -175,7 +264,9 @@ export function createGameServerWithOptions(options: { authStorePath?: string | 
 
     socket.on("game:ready", () => {
       try {
-        emitRoom(roomManager.ready(socket.id));
+        const room = roomManager.ready(socket.id);
+        logger.info("game.ready", { roomCode: room.roomCode, socketId: socket.id, phase: room.phase });
+        emitRoom(room);
       } catch (error) {
         handleError(socket.id, error);
       }
@@ -183,7 +274,9 @@ export function createGameServerWithOptions(options: { authStorePath?: string | 
 
     socket.on("bid:choose", (payload) => {
       try {
-        emitRoom(roomManager.chooseBid(socket.id, payload.score));
+        const room = roomManager.chooseBid(socket.id, payload.score);
+        logger.info("game.bid", { roomCode: room.roomCode, socketId: socket.id, score: payload.score, phase: room.phase });
+        emitRoom(room);
       } catch (error) {
         handleError(socket.id, error);
       }
@@ -192,6 +285,13 @@ export function createGameServerWithOptions(options: { authStorePath?: string | 
     socket.on("play:cards", (payload) => {
       try {
         const { room, result } = roomManager.playCards(socket.id, payload.cardIds);
+        logger.info("game.play", {
+          roomCode: room.roomCode,
+          socketId: socket.id,
+          cardCount: payload.cardIds.length,
+          phase: room.phase,
+          ended: Boolean(result)
+        });
         emitRoom(room);
         if (result) {
           io.to(room.roomCode).emit("game:ended", { result });
@@ -203,7 +303,9 @@ export function createGameServerWithOptions(options: { authStorePath?: string | 
 
     socket.on("play:pass", () => {
       try {
-        emitRoom(roomManager.pass(socket.id));
+        const room = roomManager.pass(socket.id);
+        logger.info("game.pass", { roomCode: room.roomCode, socketId: socket.id });
+        emitRoom(room);
       } catch (error) {
         handleError(socket.id, error);
       }
@@ -214,6 +316,7 @@ export function createGameServerWithOptions(options: { authStorePath?: string | 
         const profile = authManager.me(payload.token);
         chatSessions.set(socket.id, { account: profile.account, nickname: profile.nickname });
         socket.join(CHAT_ROOM);
+        logger.info("chat.joined", { socketId: socket.id, account: profile.account, onlineCount: chatSessions.size });
         emitChatState();
       } catch (error) {
         if (error instanceof AuthException) {
@@ -254,6 +357,7 @@ export function createGameServerWithOptions(options: { authStorePath?: string | 
         chatMessages.splice(0, chatMessages.length - MAX_CHAT_MESSAGES);
       }
 
+      logger.info("chat.message", { socketId: socket.id, account: session.account, length: text.length });
       io.to(CHAT_ROOM).emit("chat:message", { message });
     });
 
@@ -264,6 +368,7 @@ export function createGameServerWithOptions(options: { authStorePath?: string | 
     socket.on("disconnect", () => {
       leaveChat(socket.id);
       const room = roomManager.disconnect(socket.id);
+      logger.info("socket.disconnected", { socketId: socket.id, roomCode: room?.roomCode, phase: room?.phase });
       emitRoom(room);
       if (room?.phase === "ended" && room.message) {
         io.to(room.roomCode).emit("game:ended", { message: room.message });
@@ -271,5 +376,5 @@ export function createGameServerWithOptions(options: { authStorePath?: string | 
     });
   });
 
-  return { app, httpServer, io, roomManager, authManager };
+  return { app, httpServer, io, roomManager, authManager, logger, runMaintenance };
 }
