@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import {
   Bell,
   CircleSlash,
@@ -51,6 +53,21 @@ export function ZhaJinHuaTable({
   const activeOpponents = opponents.filter((player) => player.connected && !player.folded && room.phase === "playing");
   const isMyTurn = room.phase === "playing" && room.currentTurn === room.selfSeat;
   const selfCards = self?.hand ?? [];
+  const [showDealAnimation, setShowDealAnimation] = useState(false);
+  const previousPhaseRef = useRef(room.phase);
+
+  useEffect(() => {
+    const previousPhase = previousPhaseRef.current;
+    previousPhaseRef.current = room.phase;
+
+    if (previousPhase !== "playing" && room.phase === "playing") {
+      setShowDealAnimation(true);
+      const timer = window.setTimeout(() => setShowDealAnimation(false), 1800);
+      return () => window.clearTimeout(timer);
+    }
+
+    return undefined;
+  }, [room.phase, room.roomCode]);
 
   return (
     <>
@@ -91,6 +108,20 @@ export function ZhaJinHuaTable({
 
       <main className="zjh-main">
         <section className="zjh-table" aria-label="炸金花牌桌">
+          <div className="zjh-casino-marquee" aria-hidden="true">
+            <span>炸金花好友房</span>
+          </div>
+          <div className="zjh-dealer-zone" aria-hidden="true">
+            <div className="zjh-dealer-glow" />
+            <div className="zjh-dealer-figure">
+              <span className="zjh-dealer-head" />
+              <span className="zjh-dealer-body" />
+              <span className="zjh-dealer-arm left" />
+              <span className="zjh-dealer-arm right" />
+            </div>
+            <div className="zjh-card-shoe" />
+          </div>
+          {showDealAnimation && <ZjhDealAnimation players={room.players} selfSeat={room.selfSeat} />}
           <div className="zjh-opponents">
             {opponents.map((player) => (
               <ZjhSeat
@@ -280,20 +311,97 @@ function ZjhSeat({ player, active, self, banker }: { player: ZjhPlayerView; acti
   );
 }
 
+type DealCardStyle = CSSProperties & {
+  "--deal-index": string;
+  "--deal-x": string;
+  "--deal-y": string;
+};
+
+function ZjhDealAnimation({ players, selfSeat }: { players: ZjhPlayerView[]; selfSeat?: number }) {
+  return (
+    <div className="zjh-deal-layer" aria-hidden="true">
+      {players.flatMap((player, playerIndex) =>
+        Array.from({ length: 3 }).map((_, cardIndex) => {
+          const style = getDealCardStyle(player, playerIndex, cardIndex, selfSeat);
+          return <span className="zjh-deal-card" style={style} key={`${player.seat}-${cardIndex}`} />;
+        })
+      )}
+    </div>
+  );
+}
+
+function getDealCardStyle(player: ZjhPlayerView, playerIndex: number, cardIndex: number, selfSeat?: number): DealCardStyle {
+  if (selfSeat !== undefined && player.seat === selfSeat) {
+    return {
+      "--deal-index": String(playerIndex * 3 + cardIndex),
+      "--deal-x": `${(cardIndex - 1) * 58}px`,
+      "--deal-y": "min(58vh, 560px)"
+    };
+  }
+
+  const opponentTargets = [
+    { x: "-250px", y: "170px" },
+    { x: "250px", y: "170px" },
+    { x: "-280px", y: "340px" },
+    { x: "280px", y: "340px" },
+    { x: "-120px", y: "300px" },
+    { x: "120px", y: "300px" }
+  ];
+  const target = opponentTargets[playerIndex % opponentTargets.length];
+
+  return {
+    "--deal-index": String(playerIndex * 3 + cardIndex),
+    "--deal-x": `calc(${target.x} + ${(cardIndex - 1) * 22}px)`,
+    "--deal-y": target.y
+  };
+}
+
 function ZjhCard({ card }: { card: Card }) {
   return (
     <div className={`playing-card zjh-card ${card.color}`}>
-      <span className="card-corner">
-        <span className="card-rank">{card.label}</span>
-        <span className="card-suit">{card.suitSymbol}</span>
-      </span>
-      <span className="card-center-suit">{card.suitSymbol}</span>
+      <img src={getZjhCardImageSrc(card)} alt={`${card.label}${card.suitSymbol}`} draggable={false} loading="lazy" />
     </div>
   );
 }
 
 function ZjhCardBack() {
-  return <div className="card-back zjh-card-back" aria-hidden="true" />;
+  return (
+    <div className="card-back zjh-card-back" aria-hidden="true">
+      <img src="/casino/cards/blue_back_intricate.png" alt="" draggable={false} loading="lazy" />
+    </div>
+  );
+}
+
+function getZjhCardImageSrc(card: Card) {
+  if (card.suit === "joker") {
+    return card.color === "red" ? "/casino/cards/card_joker_red.png" : "/casino/cards/card_joker_black.png";
+  }
+
+  const suitName: Record<Exclude<Card["suit"], "joker">, string> = {
+    spades: "spade",
+    hearts: "heart",
+    clubs: "clubs",
+    diamonds: "diamond"
+  };
+  const rankName: Record<Card["rank"], string> = {
+    "3": "3",
+    "4": "4",
+    "5": "5",
+    "6": "6",
+    "7": "7",
+    "8": "8",
+    "9": "9",
+    "10": "10",
+    J: "11",
+    Q: "12",
+    K: "13",
+    A: "1",
+    "2": "2",
+    SJ: "joker_black",
+    BJ: "joker_red"
+  };
+
+  return `/casino/cards/card_${suitName[card.suit]}_${rankName[card.rank]}.png`;
 }
 
 function ZjhResultDialog({ room, notice, onReady }: { room: ZjhRoomView; notice: string; onReady: () => void }) {

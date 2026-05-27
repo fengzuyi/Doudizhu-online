@@ -83,6 +83,12 @@ function waitForChatError(socket: ClientSocket): Promise<GameError> {
   });
 }
 
+function waitForSessionReplaced(socket: ClientSocket): Promise<{ message: string }> {
+  return new Promise((resolve) => {
+    socket.once("auth:session_replaced", resolve);
+  });
+}
+
 function waitForStateWhere(socket: ClientSocket, predicate: (roomView: RoomView) => boolean): Promise<RoomView> {
   return new Promise((resolve) => {
     const handler = ({ roomView }: { roomView: RoomView }) => {
@@ -119,6 +125,20 @@ async function registerAccount(baseUrl: string, account: string, nickname: strin
 
   if (!response.ok) {
     throw new Error(`Failed to register ${account}`);
+  }
+
+  return (await response.json()) as { token: string; profile: { account: string; nickname: string } };
+}
+
+async function loginAccount(baseUrl: string, account: string) {
+  const response = await fetch(`${baseUrl}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ account, password: "password123" })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to log in ${account}`);
   }
 
   return (await response.json()) as { token: string; profile: { account: string; nickname: string } };
@@ -330,6 +350,28 @@ describe("socket game flow", () => {
     expect(message.nickname).toBe("甲");
     expect(message.account).toBe("alpha");
     expect(message.text).toBe("开一局");
+  });
+
+  it("replaces an older socket session when the same account joins from another device", async () => {
+    const [oldDevice, newDevice] = await Promise.all([connectClient(baseUrl), connectClient(baseUrl)]);
+    clients = [oldDevice, newDevice];
+    const firstLogin = await registerAccount(baseUrl, "same-account", "同号玩家");
+
+    const joinedOld = waitForChatState(oldDevice);
+    oldDevice.emit("chat:join", { token: firstLogin.token });
+    expect((await joinedOld).onlineCount).toBe(1);
+
+    const secondLogin = await loginAccount(baseUrl, "same-account");
+    const replaced = waitForSessionReplaced(oldDevice);
+    const joinedNew = waitForChatState(newDevice);
+    newDevice.emit("chat:join", { token: secondLogin.token });
+
+    await expect(replaced).resolves.toMatchObject({ message: expect.any(String) });
+    expect((await joinedNew).onlineCount).toBe(1);
+
+    const oldError = waitForChatError(oldDevice);
+    oldDevice.emit("chat:send", { text: "旧设备还能发吗" });
+    expect((await oldError).code).toBe("CHAT_UNAUTHORIZED");
   });
 
   it("rejects empty and too-long chat messages", async () => {

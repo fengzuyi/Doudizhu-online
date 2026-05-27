@@ -177,6 +177,31 @@ describe("auth API", () => {
     expect(invalid.body).toMatchObject({ code: "UNAUTHORIZED" });
   });
 
+  it("allows only the latest token for the same account", async () => {
+    const registered = await postJson(baseUrl, "/api/auth/register", {
+      account: "player001",
+      nickname: "玩家一号",
+      password: "secret"
+    });
+    const firstToken = String(registered.body.token);
+
+    const loggedInAgain = await postJson(baseUrl, "/api/auth/login", {
+      account: "player001",
+      password: "secret"
+    });
+    const secondToken = String(loggedInAgain.body.token);
+
+    expect(secondToken).not.toBe(firstToken);
+
+    const oldSession = await getJson(baseUrl, "/api/auth/me", firstToken);
+    expect(oldSession.status).toBe(401);
+    expect(oldSession.body).toMatchObject({ code: "SESSION_REPLACED" });
+
+    const currentSession = await getJson(baseUrl, "/api/auth/me", secondToken);
+    expect(currentSession.status).toBe(200);
+    expect(currentSession.body.profile).toMatchObject({ account: "player001", nickname: "玩家一号" });
+  });
+
   it("invalidates a token after logout", async () => {
     const registered = await postJson(baseUrl, "/api/auth/register", {
       account: "player001",

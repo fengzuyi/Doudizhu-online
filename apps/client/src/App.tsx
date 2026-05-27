@@ -226,6 +226,50 @@ export default function App() {
     }
   }, []);
 
+  const clearAuthSession = useCallback((message?: string) => {
+    socket.emit("chat:leave");
+    const hadRoom = Boolean(roomRef.current);
+    const hadZjhRoom = Boolean(zjhRoomRef.current);
+    const hadDaBanZiRoom = Boolean(daBanZiRoomRef.current);
+    roomRef.current = null;
+    zjhRoomRef.current = null;
+    daBanZiRoomRef.current = null;
+    if (hadRoom) {
+      suppressRoomStateRef.current = true;
+      socket.emit("room:leave");
+    }
+    if (hadZjhRoom) {
+      suppressZjhRoomStateRef.current = true;
+      socket.emit("zjh:room:leave");
+    }
+    if (hadDaBanZiRoom) {
+      suppressDaBanZiRoomStateRef.current = true;
+      socket.emit("dbz:room:leave");
+    }
+    clearStoredAuth();
+    clearStoredRoomSession();
+    setAuthProfile(null);
+    setAuthToken("");
+    setNickname("");
+    setActiveView("login");
+    setRoom(null);
+    setZjhRoom(null);
+    setDaBanZiRoom(null);
+    setSelectedIds(new Set());
+    setEndedNotice("");
+    setZjhEndedNotice("");
+    setDaBanZiEndedNotice("");
+    setChatMessages([]);
+    setChatOnlineCount(0);
+    setChatJoined(false);
+    setChatDraft("");
+    setGameChatOpen(false);
+    setLeaveConfirmOpen(false);
+    if (message) {
+      setToast(message);
+    }
+  }, []);
+
   useEffect(() => {
     roomRef.current = room;
   }, [room]);
@@ -373,7 +417,15 @@ export default function App() {
       if (["UNAUTHORIZED", "CHAT_JOIN_FAILED"].includes(code)) {
         setChatJoined(false);
       }
+      if (code === "SESSION_REPLACED") {
+        clearAuthSession(message);
+        return;
+      }
       setToast(message);
+    }
+
+    function onAuthSessionReplaced({ message }: { message: string }) {
+      clearAuthSession(message);
     }
 
     socket.on("connect", onConnect);
@@ -389,6 +441,7 @@ export default function App() {
     socket.on("chat:state", onChatState);
     socket.on("chat:message", onChatMessage);
     socket.on("chat:error", onChatError);
+    socket.on("auth:session_replaced", onAuthSessionReplaced);
 
     return () => {
       socket.off("connect", onConnect);
@@ -404,8 +457,9 @@ export default function App() {
       socket.off("chat:state", onChatState);
       socket.off("chat:message", onChatMessage);
       socket.off("chat:error", onChatError);
+      socket.off("auth:session_replaced", onAuthSessionReplaced);
     };
-  }, [resetRoomSession]);
+  }, [clearAuthSession, resetRoomSession]);
 
   useEffect(() => {
     if (!toast) {

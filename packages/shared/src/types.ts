@@ -340,6 +340,7 @@ export interface ServerToClientEvents {
   "chat:state": (payload: { messages: ChatMessage[]; onlineCount: number }) => void;
   "chat:message": (payload: { message: ChatMessage }) => void;
   "chat:error": (payload: GameError) => void;
+  "auth:session_replaced": (payload: { message: string }) => void;
   "zjh:room:state": (payload: { roomView: ZjhRoomView }) => void;
   "zjh:compare:reveal": (payload: { reveal: ZjhCompareReveal }) => void;
   "zjh:game:ended": (payload: { result?: ZjhRoundResult; message?: string }) => void;

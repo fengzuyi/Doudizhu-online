@@ -69,6 +69,8 @@ function assertCredentials(account: string, password: string) {
 export class AuthManager {
   private readonly accounts = new Map<string, AccountRecord>();
   private readonly sessions = new Map<string, string>();
+  private readonly activeTokensByAccount = new Map<string, string>();
+  private readonly replacedTokens = new Set<string>();
 
   constructor(private readonly storePath: string | null = defaultAuthStorePath()) {
     this.loadAccounts();
@@ -122,12 +124,22 @@ export class AuthManager {
   me(token: string | undefined): AuthProfile {
     const account = token ? this.sessions.get(token) : undefined;
     if (!account) {
+      if (token && this.replacedTokens.has(token)) {
+        this.replacedTokens.delete(token);
+        throw new AuthException("SESSION_REPLACED", "账号已在其他设备登录，请重新登录。", 401);
+      }
       throw new AuthException("UNAUTHORIZED", "登录已过期，请重新登录。", 401);
+    }
+
+    if (this.activeTokensByAccount.get(account) !== token) {
+      this.sessions.delete(token ?? "");
+      throw new AuthException("SESSION_REPLACED", "账号已在其他设备登录，请重新登录。", 401);
     }
 
     const record = this.accounts.get(account);
     if (!record) {
       this.sessions.delete(token ?? "");
+      this.activeTokensByAccount.delete(account);
       throw new AuthException("UNAUTHORIZED", "登录已过期，请重新登录。", 401);
     }
 
@@ -136,7 +148,12 @@ export class AuthManager {
 
   logout(token: string | undefined) {
     if (token) {
+      const account = this.sessions.get(token);
       this.sessions.delete(token);
+      this.replacedTokens.delete(token);
+      if (account && this.activeTokensByAccount.get(account) === token) {
+        this.activeTokensByAccount.delete(account);
+      }
     }
   }
 
@@ -176,12 +193,24 @@ export class AuthManager {
       throw new AuthException("ACCOUNT_NOT_FOUND", "账号不存在，请先注册。", 404);
     }
 
+    this.revokeAccountSessions(account);
     const token = randomBytes(32).toString("hex");
     this.sessions.set(token, account);
+    this.activeTokensByAccount.set(account, token);
     return {
       token,
       profile: this.toProfile(record)
     };
+  }
+
+  private revokeAccountSessions(account: string) {
+    for (const [token, sessionAccount] of this.sessions.entries()) {
+      if (sessionAccount === account) {
+        this.sessions.delete(token);
+        this.replacedTokens.add(token);
+      }
+    }
+    this.activeTokensByAccount.delete(account);
   }
 
   private toProfile(record: AccountRecord): AuthProfile {

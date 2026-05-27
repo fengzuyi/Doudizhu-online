@@ -72,7 +72,7 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
   const zjhRoomManager = new ZjhRoomManager();
   const daBanZiRoomManager = new DaBanZiRoomManager();
   const chatMessages: ChatMessage[] = [];
-  const chatSessions = new Map<string, { account: string; nickname: string }>();
+  const chatSessions = new Map<string, { account: string; nickname: string; token: string }>();
   const cleanupOptions = {
     emptyRoomTtlMs: numberFromEnv("EMPTY_ROOM_TTL_MS", 60_000),
     endedRoomTtlMs: numberFromEnv("ENDED_ROOM_TTL_MS", 30 * 60_000),
@@ -204,6 +204,53 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       io.sockets.sockets.get(socketId)?.leave(CHAT_ROOM);
       emitChatState();
       logger.info("chat.left", { socketId, onlineCount: chatSessions.size });
+    }
+  }
+
+  function removeSocketFromGameRooms(socketId: string) {
+    const room = roomManager.getRoomForSocket(socketId);
+    if (room) {
+      io.sockets.sockets.get(socketId)?.leave(room.roomCode);
+      emitRoom(roomManager.leaveRoom(socketId));
+    }
+
+    const zjhRoom = zjhRoomManager.getRoomForSocket(socketId);
+    if (zjhRoom) {
+      io.sockets.sockets.get(socketId)?.leave(zjhSocketRoom(zjhRoom.roomCode));
+      const updatedRoom = zjhRoomManager.leaveRoom(socketId);
+      emitZjhRoom(updatedRoom);
+      if (updatedRoom?.phase === "ended" && updatedRoom.result) {
+        io.to(zjhSocketRoom(updatedRoom.roomCode)).emit("zjh:game:ended", {
+          result: updatedRoom.result,
+          message: updatedRoom.message
+        });
+      }
+    }
+
+    const daBanZiRoom = daBanZiRoomManager.getRoomForSocket(socketId);
+    if (daBanZiRoom) {
+      io.sockets.sockets.get(socketId)?.leave(dbzSocketRoom(daBanZiRoom.roomCode));
+      const updatedRoom = daBanZiRoomManager.leaveRoom(socketId);
+      emitDaBanZiRoom(updatedRoom);
+      if (updatedRoom?.phase === "ended" && updatedRoom.result) {
+        io.to(dbzSocketRoom(updatedRoom.roomCode)).emit("dbz:game:ended", {
+          result: updatedRoom.result,
+          message: updatedRoom.message
+        });
+      }
+    }
+  }
+
+  function replaceAccountSessions(account: string, currentSocketId: string) {
+    for (const [socketId, session] of [...chatSessions.entries()]) {
+      if (socketId === currentSocketId || session.account !== account) {
+        continue;
+      }
+
+      io.to(socketId).emit("auth:session_replaced", { message: "账号已在其他设备登录，当前设备已退出。" });
+      removeSocketFromGameRooms(socketId);
+      leaveChat(socketId);
+      logger.info("auth.session_replaced", { account, oldSocketId: socketId, newSocketId: currentSocketId });
     }
   }
 
@@ -348,7 +395,8 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
     socket.on("chat:join", (payload) => {
       try {
         const profile = authManager.me(payload.token);
-        chatSessions.set(socket.id, { account: profile.account, nickname: profile.nickname });
+        replaceAccountSessions(profile.account, socket.id);
+        chatSessions.set(socket.id, { account: profile.account, nickname: profile.nickname, token: payload.token });
         socket.join(CHAT_ROOM);
         logger.info("chat.joined", { socketId: socket.id, account: profile.account, onlineCount: chatSessions.size });
         emitChatState();
@@ -366,6 +414,23 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       const session = chatSessions.get(socket.id);
       if (!session) {
         emitChatError(socket.id, "CHAT_UNAUTHORIZED", "请先登录后再发送聊天。");
+        return;
+      }
+
+      try {
+        authManager.me(session.token);
+      } catch (error) {
+        leaveChat(socket.id);
+        if (error instanceof AuthException) {
+          emitChatError(socket.id, error.code, error.message);
+          if (error.code === "SESSION_REPLACED") {
+            io.to(socket.id).emit("auth:session_replaced", { message: error.message });
+            removeSocketFromGameRooms(socket.id);
+          }
+          return;
+        }
+
+        emitChatError(socket.id, "CHAT_UNAUTHORIZED", "请重新登录后再发送聊天。");
         return;
       }
 
