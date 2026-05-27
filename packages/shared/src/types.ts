@@ -124,7 +124,7 @@ export interface ChatMessage {
   at: number;
 }
 
-export type GameKind = "doudizhu" | "zha_jin_hua";
+export type GameKind = "doudizhu" | "zha_jin_hua" | "da_ban_zi";
 
 export type ZjhPhase = "lobby" | "playing" | "ended";
 
@@ -204,6 +204,105 @@ export interface ZjhRoomView {
   message?: string;
 }
 
+export type DaBanZiPhase = "lobby" | "bao" | "partner_call" | "playing" | "ended";
+
+export type DaBanZiMode = "undecided" | "two_vs_two" | "one_vs_three" | "spring";
+
+export type DaBanZiHandType =
+  | "single"
+  | "pair"
+  | "triple"
+  | "bomb"
+  | "straight"
+  | "pair_straight"
+  | "rolling_triples"
+  | "rolling_bombs";
+
+export interface DaBanZiHandAnalysis {
+  type: DaBanZiHandType;
+  label: string;
+  mainValue: number;
+  cardCount: number;
+  sequenceLength?: number;
+}
+
+export interface DaBanZiPartnerCallOption {
+  rank: Rank;
+  suit: Exclude<Suit, "joker">;
+  label: string;
+}
+
+export interface DaBanZiPlayerView {
+  seat: number;
+  nickname: string;
+  connected: boolean;
+  ready: boolean;
+  cardCount: number;
+  collectedCount: number;
+  finishedRank?: number;
+  hand?: Card[];
+  role?: "banker" | "partner" | "opponent" | "solo" | "defender" | "unknown";
+  lastAction?: string;
+}
+
+export interface DaBanZiPublicPlay {
+  seat?: number;
+  nickname?: string;
+  action: "ready" | "bao" | "pass_bao" | "call_partner" | "play" | "pass" | "collect" | "system";
+  label: string;
+  cards?: Card[];
+  handType?: DaBanZiHandType;
+  at: number;
+}
+
+export interface DaBanZiLastPlay {
+  seat: number;
+  nickname: string;
+  cards: Card[];
+  analysis: DaBanZiHandAnalysis;
+}
+
+export interface DaBanZiRoundResult {
+  mode: DaBanZiMode;
+  winnerLabel: string;
+  winnerSeats: number[];
+  reason: string;
+  collectedCounts: Record<number, number>;
+  teamCollectedCounts: Record<string, number>;
+  finishOrder: number[];
+  bankerSeat?: number;
+  partnerSeat?: number;
+  baoSeat?: number;
+  calledPartnerCard?: DaBanZiPartnerCallOption;
+}
+
+export interface DaBanZiRoomView {
+  roomCode: string;
+  phase: DaBanZiPhase;
+  mode: DaBanZiMode;
+  playerCount: number;
+  maxPlayers: number;
+  selfSeat?: number;
+  players: DaBanZiPlayerView[];
+  currentTurn?: number;
+  dealStartSeat?: number;
+  bankerSeat?: number;
+  partnerSeat?: number;
+  partnerRevealed: boolean;
+  baoCurrentSeat?: number;
+  baoSeat?: number;
+  freeLeadRemaining: number;
+  partnerCallOptions: DaBanZiPartnerCallOption[];
+  calledPartnerCard?: DaBanZiPartnerCallOption;
+  lastPlay?: DaBanZiLastPlay;
+  trickCardCount: number;
+  passCount: number;
+  finishOrder: number[];
+  turnLog: DaBanZiPublicPlay[];
+  result?: DaBanZiRoundResult;
+  message?: string;
+}
+
 export interface ClientToServerEvents {
   "room:create": (payload: { nickname: string }) => void;
   "room:join": (payload: { roomCode: string; nickname: string }) => void;
@@ -224,6 +323,14 @@ export interface ClientToServerEvents {
   "zjh:action:raise": (payload: { amount: number }) => void;
   "zjh:action:fold": () => void;
   "zjh:action:compare": (payload: { targetSeat: number }) => void;
+  "dbz:room:create": (payload: { nickname: string }) => void;
+  "dbz:room:join": (payload: { roomCode: string; nickname: string }) => void;
+  "dbz:room:leave": () => void;
+  "dbz:game:ready": () => void;
+  "dbz:bao:choose": (payload: { action: "bao" | "pass" }) => void;
+  "dbz:partner:call": (payload: { rank: Rank; suit: Exclude<Suit, "joker"> }) => void;
+  "dbz:play:cards": (payload: { cardIds: string[] }) => void;
+  "dbz:play:pass": () => void;
 }
 
 export interface ServerToClientEvents {
@@ -236,4 +343,6 @@ export interface ServerToClientEvents {
   "zjh:room:state": (payload: { roomView: ZjhRoomView }) => void;
   "zjh:compare:reveal": (payload: { reveal: ZjhCompareReveal }) => void;
   "zjh:game:ended": (payload: { result?: ZjhRoundResult; message?: string }) => void;
+  "dbz:room:state": (payload: { roomView: DaBanZiRoomView }) => void;
+  "dbz:game:ended": (payload: { result?: DaBanZiRoundResult; message?: string }) => void;
 }

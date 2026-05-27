@@ -56,6 +56,14 @@ const games = [
     Icon: CircleDot
   },
   {
+    kind: "da_ban_zi" as const,
+    name: "打板子",
+    description: "四人固定好友房，支持包了、叫队友、隐藏身份和收牌数结算。",
+    action: "选择",
+    available: true,
+    Icon: Gamepad2
+  },
+  {
     kind: "mahjong" as const,
     name: "麻将",
     description: "好友同桌，适合慢节奏休闲对局。",
@@ -75,7 +83,8 @@ const games = [
 
 const selectedGameName: Record<GameKind, string> = {
   doudizhu: "斗地主",
-  zha_jin_hua: "炸金花"
+  zha_jin_hua: "炸金花",
+  da_ban_zi: "打板子"
 };
 
 function avatarText(nickname: string) {
@@ -249,7 +258,7 @@ export function GameHall({
                     <button
                       type="button"
                       onClick={
-                        game.kind === "doudizhu" || game.kind === "zha_jin_hua"
+                        game.kind === "doudizhu" || game.kind === "zha_jin_hua" || game.kind === "da_ban_zi"
                           ? () => onGameSelect(game.kind)
                           : () => onUnavailable(game.name)
                       }

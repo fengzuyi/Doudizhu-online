@@ -9,6 +9,8 @@ import { GameException, RoomManager } from "./roomManager.js";
 import type { InternalRoom } from "./roomManager.js";
 import { ZjhRoomManager } from "./zjhRoomManager.js";
 import type { ZjhInternalRoom } from "./zjhRoomManager.js";
+import { DaBanZiRoomManager } from "./daBanZiRoomManager.js";
+import type { DaBanZiInternalRoom } from "./daBanZiRoomManager.js";
 import { createLogger } from "./logger.js";
 import type { AppLogger } from "./logger.js";
 
@@ -68,6 +70,7 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
   const authManager = new AuthManager(options.authStorePath);
   const roomManager = new RoomManager();
   const zjhRoomManager = new ZjhRoomManager();
+  const daBanZiRoomManager = new DaBanZiRoomManager();
   const chatMessages: ChatMessage[] = [];
   const chatSessions = new Map<string, { account: string; nickname: string }>();
   const cleanupOptions = {
@@ -154,6 +157,20 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
 
     for (const { socketId, roomView } of zjhRoomManager.buildViews(room)) {
       io.to(socketId).emit("zjh:room:state", { roomView });
+    }
+  }
+
+  function dbzSocketRoom(roomCode: string) {
+    return `dbz:${roomCode}`;
+  }
+
+  function emitDaBanZiRoom(room: DaBanZiInternalRoom | undefined) {
+    if (!room) {
+      return;
+    }
+
+    for (const { socketId, roomView } of daBanZiRoomManager.buildViews(room)) {
+      io.to(socketId).emit("dbz:room:state", { roomView });
     }
   }
 
@@ -507,19 +524,132 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       }
     });
 
+    socket.on("dbz:room:create", (payload) => {
+      try {
+        const room = daBanZiRoomManager.createRoom(socket.id, payload.nickname);
+        socket.join(dbzSocketRoom(room.roomCode));
+        logger.info("dbz.room.created", { roomCode: room.roomCode, socketId: socket.id, nickname: payload.nickname });
+        emitDaBanZiRoom(room);
+      } catch (error) {
+        handleError(socket.id, error);
+      }
+    });
+
+    socket.on("dbz:room:join", (payload) => {
+      try {
+        const room = daBanZiRoomManager.joinRoom(socket.id, payload.roomCode, payload.nickname);
+        socket.join(dbzSocketRoom(room.roomCode));
+        logger.info("dbz.room.joined", { roomCode: room.roomCode, socketId: socket.id, nickname: payload.nickname });
+        emitDaBanZiRoom(room);
+      } catch (error) {
+        handleError(socket.id, error);
+      }
+    });
+
+    socket.on("dbz:room:leave", () => {
+      try {
+        const room = daBanZiRoomManager.getRoomForSocket(socket.id);
+        if (room) {
+          socket.leave(dbzSocketRoom(room.roomCode));
+        }
+        const updatedRoom = daBanZiRoomManager.leaveRoom(socket.id);
+        logger.info("dbz.room.left", { roomCode: room?.roomCode, socketId: socket.id });
+        emitDaBanZiRoom(updatedRoom);
+        if (updatedRoom?.phase === "ended") {
+          io.to(dbzSocketRoom(updatedRoom.roomCode)).emit("dbz:game:ended", {
+            result: updatedRoom.result,
+            message: updatedRoom.message
+          });
+        }
+      } catch (error) {
+        handleError(socket.id, error);
+      }
+    });
+
+    socket.on("dbz:game:ready", () => {
+      try {
+        const room = daBanZiRoomManager.ready(socket.id);
+        logger.info("dbz.game.ready", { roomCode: room.roomCode, socketId: socket.id, phase: room.phase });
+        emitDaBanZiRoom(room);
+        if (room.phase === "ended") {
+          io.to(dbzSocketRoom(room.roomCode)).emit("dbz:game:ended", { result: room.result, message: room.message });
+        }
+      } catch (error) {
+        handleError(socket.id, error);
+      }
+    });
+
+    socket.on("dbz:bao:choose", (payload) => {
+      try {
+        const room = daBanZiRoomManager.chooseBao(socket.id, payload.action);
+        logger.info("dbz.bao.choose", { roomCode: room.roomCode, socketId: socket.id, action: payload.action, phase: room.phase });
+        emitDaBanZiRoom(room);
+      } catch (error) {
+        handleError(socket.id, error);
+      }
+    });
+
+    socket.on("dbz:partner:call", (payload) => {
+      try {
+        const room = daBanZiRoomManager.callPartner(socket.id, payload.rank, payload.suit);
+        logger.info("dbz.partner.call", { roomCode: room.roomCode, socketId: socket.id, rank: payload.rank, suit: payload.suit });
+        emitDaBanZiRoom(room);
+      } catch (error) {
+        handleError(socket.id, error);
+      }
+    });
+
+    socket.on("dbz:play:cards", (payload) => {
+      try {
+        const { room, result } = daBanZiRoomManager.playCards(socket.id, payload.cardIds);
+        logger.info("dbz.play", {
+          roomCode: room.roomCode,
+          socketId: socket.id,
+          cardCount: payload.cardIds.length,
+          phase: room.phase,
+          ended: Boolean(result)
+        });
+        emitDaBanZiRoom(room);
+        if (result) {
+          io.to(dbzSocketRoom(room.roomCode)).emit("dbz:game:ended", { result, message: room.message });
+        }
+      } catch (error) {
+        handleError(socket.id, error);
+      }
+    });
+
+    socket.on("dbz:play:pass", () => {
+      try {
+        const room = daBanZiRoomManager.pass(socket.id);
+        logger.info("dbz.pass", { roomCode: room.roomCode, socketId: socket.id });
+        emitDaBanZiRoom(room);
+        if (room.phase === "ended") {
+          io.to(dbzSocketRoom(room.roomCode)).emit("dbz:game:ended", { result: room.result, message: room.message });
+        }
+      } catch (error) {
+        handleError(socket.id, error);
+      }
+    });
+
     socket.on("disconnect", () => {
       leaveChat(socket.id);
       const room = roomManager.disconnect(socket.id);
       const zjhRoom = zjhRoomManager.disconnect(socket.id);
+      const dbzRoom = daBanZiRoomManager.disconnect(socket.id);
       if (zjhRoom) {
         socket.leave(zjhSocketRoom(zjhRoom.roomCode));
+      }
+      if (dbzRoom) {
+        socket.leave(dbzSocketRoom(dbzRoom.roomCode));
       }
       logger.info("socket.disconnected", {
         socketId: socket.id,
         roomCode: room?.roomCode,
         phase: room?.phase,
         zjhRoomCode: zjhRoom?.roomCode,
-        zjhPhase: zjhRoom?.phase
+        zjhPhase: zjhRoom?.phase,
+        dbzRoomCode: dbzRoom?.roomCode,
+        dbzPhase: dbzRoom?.phase
       });
       emitRoom(room);
       if (room?.phase === "ended" && room.message) {
@@ -529,8 +659,12 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       if (zjhRoom?.phase === "ended" && zjhRoom.result) {
         io.to(zjhSocketRoom(zjhRoom.roomCode)).emit("zjh:game:ended", { result: zjhRoom.result, message: zjhRoom.message });
       }
+      emitDaBanZiRoom(dbzRoom);
+      if (dbzRoom?.phase === "ended") {
+        io.to(dbzSocketRoom(dbzRoom.roomCode)).emit("dbz:game:ended", { result: dbzRoom.result, message: dbzRoom.message });
+      }
     });
   });
 
-  return { app, httpServer, io, roomManager, zjhRoomManager, authManager, logger, runMaintenance };
+  return { app, httpServer, io, roomManager, zjhRoomManager, daBanZiRoomManager, authManager, logger, runMaintenance };
 }

@@ -6,6 +6,7 @@ import type { Socket } from "socket.io-client";
 import type {
   ChatMessage,
   ClientToServerEvents,
+  DaBanZiRoomView,
   GameError,
   PlayerSeat,
   RoomView,
@@ -31,6 +32,27 @@ function waitForChatState(socket: ClientSocket): Promise<{ messages: ChatMessage
 function waitForZjhState(socket: ClientSocket): Promise<ZjhRoomView> {
   return new Promise((resolve) => {
     socket.once("zjh:room:state", ({ roomView }) => resolve(roomView));
+  });
+}
+
+function waitForDaBanZiState(socket: ClientSocket): Promise<DaBanZiRoomView> {
+  return new Promise((resolve) => {
+    socket.once("dbz:room:state", ({ roomView }) => resolve(roomView));
+  });
+}
+
+function waitForDaBanZiStateWhere(socket: ClientSocket, predicate: (roomView: DaBanZiRoomView) => boolean): Promise<DaBanZiRoomView> {
+  return new Promise((resolve) => {
+    const handler = ({ roomView }: { roomView: DaBanZiRoomView }) => {
+      if (!predicate(roomView)) {
+        return;
+      }
+
+      socket.off("dbz:room:state", handler);
+      resolve(roomView);
+    };
+
+    socket.on("dbz:room:state", handler);
   });
 }
 
@@ -223,6 +245,46 @@ describe("socket game flow", () => {
     const seenState = await afterSee;
 
     expect(seenState.players.find((player) => player.seat === currentTurn)?.hand).toHaveLength(3);
+  });
+
+  it("lets four sockets create, join, ready, and enter da ban zi bao phase", async () => {
+    const [a, b, c, d] = await Promise.all([
+      connectClient(baseUrl),
+      connectClient(baseUrl),
+      connectClient(baseUrl),
+      connectClient(baseUrl)
+    ]);
+    clients = [a, b, c, d];
+
+    const createdState = waitForDaBanZiState(a);
+    a.emit("dbz:room:create", { nickname: "甲" });
+    const roomCode = (await createdState).roomCode;
+
+    const joinedB = waitForDaBanZiState(b);
+    b.emit("dbz:room:join", { roomCode, nickname: "乙" });
+    await joinedB;
+
+    const joinedC = waitForDaBanZiState(c);
+    c.emit("dbz:room:join", { roomCode, nickname: "丙" });
+    await joinedC;
+
+    const joinedD = waitForDaBanZiState(d);
+    d.emit("dbz:room:join", { roomCode, nickname: "丁" });
+    await joinedD;
+
+    const baoState = waitForDaBanZiStateWhere(a, (roomView) => roomView.phase === "bao" || roomView.phase === "ended");
+    a.emit("dbz:game:ready");
+    b.emit("dbz:game:ready");
+    c.emit("dbz:game:ready");
+    d.emit("dbz:game:ready");
+    const state = await baoState;
+
+    expect(state.playerCount).toBe(4);
+    expect(state.players).toHaveLength(4);
+    expect(state.phase).toBe("bao");
+    expect(state.baoCurrentSeat).toBeDefined();
+    expect(state.players.find((player) => player.seat === state.selfSeat)?.hand).toHaveLength(13);
+    expect(state.players.find((player) => player.seat !== state.selfSeat)?.hand).toBeUndefined();
   });
 
   it("rejects chat messages before a socket joins chat", async () => {
