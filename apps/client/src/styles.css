@@ -3359,6 +3359,32 @@ button.playing-card.selectable:hover:not(:disabled) {
   color: #9a312c;
 }
 
+.zjh-seat-cards {
+  display: flex;
+  align-items: flex-end;
+  margin-top: 10px;
+  min-height: 58px;
+}
+
+.zjh-seat-cards .zjh-card {
+  width: 42px;
+  height: 58px;
+  margin-left: -8px;
+  box-shadow: 0 8px 18px rgba(32, 62, 49, 0.12);
+}
+
+.zjh-seat-cards .zjh-card:first-child {
+  margin-left: 0;
+}
+
+.zjh-seat-cards .card-corner {
+  font-size: 12px;
+}
+
+.zjh-seat-cards .card-center-suit {
+  font-size: 16px;
+}
+
 .zjh-empty-seat {
   display: grid;
   place-items: center;
@@ -3529,6 +3555,61 @@ button.playing-card.selectable:hover:not(:disabled) {
 
 .zjh-result-row .card-center-suit {
   font-size: 18px;
+}
+
+.zjh-compare-reveal {
+  position: fixed;
+  left: 50%;
+  top: 104px;
+  z-index: 70;
+  width: min(420px, calc(100vw - 28px));
+  transform: translateX(-50%);
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(23, 57, 43, 0.14);
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: rgba(255, 253, 246, 0.96);
+  color: #1c2b2a;
+  box-shadow: 0 22px 54px rgba(32, 62, 49, 0.24);
+}
+
+.zjh-compare-reveal > div:first-child {
+  display: grid;
+  gap: 3px;
+  text-align: center;
+}
+
+.zjh-compare-reveal span,
+.zjh-compare-reveal small {
+  color: #667872;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.zjh-compare-reveal strong {
+  color: #0f6f4d;
+  font-size: 22px;
+}
+
+.zjh-compare-reveal-cards {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+}
+
+.zjh-compare-reveal-cards .zjh-card {
+  width: 64px;
+  height: 90px;
+  margin-left: -8px;
+}
+
+.zjh-compare-reveal-cards .zjh-card:first-child {
+  margin-left: 0;
+}
+
+.zjh-compare-reveal-cards .card-center-suit {
+  font-size: 24px;
 }
 
 @media (max-width: 980px) {

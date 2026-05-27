@@ -6,7 +6,7 @@ import {
   getZjhBetTier,
   shuffleZjhDeck
 } from "@doudizhu/shared";
-import type { Card, ZjhPublicAction, ZjhRoomView, ZjhRoundResult } from "@doudizhu/shared";
+import type { Card, ZjhCompareReveal, ZjhPublicAction, ZjhRoomView, ZjhRoundResult } from "@doudizhu/shared";
 import { GameException } from "./roomManager.js";
 
 const ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -296,7 +296,7 @@ export class ZjhRoomManager {
     return room;
   }
 
-  compare(socketId: string, targetSeat: number): ZjhInternalRoom {
+  compare(socketId: string, targetSeat: number): { room: ZjhInternalRoom; reveal: ZjhCompareReveal } {
     const { room, player } = this.requireTurn(socketId);
     const target = room.players[targetSeat];
     if (!target || target.folded || !target.connected) {
@@ -308,6 +308,14 @@ export class ZjhRoomManager {
 
     const cost = getZjhBetCost(room.currentBet, player.seen) * 2;
     this.takeChips(room, player, cost);
+    const targetAnalysis = analyzeZjhHand(target.hand);
+    const reveal: ZjhCompareReveal = {
+      targetSeat: target.seat,
+      targetNickname: target.nickname,
+      cards: target.hand,
+      handLabel: targetAnalysis.label,
+      at: Date.now()
+    };
     const comparison = compareZjhHands(player.hand, target.hand);
     const loser = comparison > 0 ? target : player;
     loser.folded = true;
@@ -332,7 +340,7 @@ export class ZjhRoomManager {
     }
     this.touch(room);
 
-    return room;
+    return { room, reveal };
   }
 
   getRoomForSocket(socketId: string): ZjhInternalRoom | undefined {

@@ -175,6 +175,14 @@ export interface ZjhRoundResult {
   }>;
 }
 
+export interface ZjhCompareReveal {
+  targetSeat: number;
+  targetNickname: string;
+  cards: Card[];
+  handLabel: string;
+  at: number;
+}
+
 export interface ZjhRoomView {
   roomCode: string;
   phase: ZjhPhase;
@@ -226,5 +234,6 @@ export interface ServerToClientEvents {
   "chat:message": (payload: { message: ChatMessage }) => void;
   "chat:error": (payload: GameError) => void;
   "zjh:room:state": (payload: { roomView: ZjhRoomView }) => void;
+  "zjh:compare:reveal": (payload: { reveal: ZjhCompareReveal }) => void;
   "zjh:game:ended": (payload: { result?: ZjhRoundResult; message?: string }) => void;
 }

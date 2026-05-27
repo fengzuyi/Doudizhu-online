@@ -490,13 +490,14 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
 
     socket.on("zjh:action:compare", (payload) => {
       try {
-        const room = zjhRoomManager.compare(socket.id, payload.targetSeat);
+        const { room, reveal } = zjhRoomManager.compare(socket.id, payload.targetSeat);
         logger.info("zjh.action.compare", {
           roomCode: room.roomCode,
           socketId: socket.id,
           targetSeat: payload.targetSeat,
           phase: room.phase
         });
+        io.to(socket.id).emit("zjh:compare:reveal", { reveal });
         emitZjhRoom(room);
         if (room.phase === "ended") {
           io.to(zjhSocketRoom(room.roomCode)).emit("zjh:game:ended", { result: room.result, message: room.message });

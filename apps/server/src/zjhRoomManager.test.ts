@@ -11,6 +11,17 @@ function prepareRoom(rng: () => number = () => 0.15) {
   return { manager, room };
 }
 
+function prepareThreePlayerRoom(rng: () => number = () => 0) {
+  const manager = new ZjhRoomManager(rng);
+  const room = manager.createRoom("s1", "甲", 4);
+  manager.joinRoom("s2", room.roomCode, "乙");
+  manager.joinRoom("s3", room.roomCode, "丙");
+  manager.ready("s1");
+  manager.ready("s2");
+  manager.ready("s3");
+  return { manager, room };
+}
+
 describe("ZjhRoomManager", () => {
   it("creates, joins, readies and starts a private 3-card round", () => {
     const { manager, room } = prepareRoom();
@@ -61,6 +72,31 @@ describe("ZjhRoomManager", () => {
     expect(room.phase).toBe("ended");
     expect(room.result?.pot).toBe(8);
     expect(room.result?.hands).toHaveLength(2);
+  });
+
+  it("sends compared cards only as a one-time reveal to the initiator", () => {
+    const { manager, room } = prepareThreePlayerRoom(() => 0);
+
+    const { reveal } = manager.compare("s1", 1);
+    expect(room.phase).toBe("playing");
+
+    const viewForA = manager.buildViews(room).find((view) => view.socketId === "s1")?.roomView;
+    const viewForB = manager.buildViews(room).find((view) => view.socketId === "s2")?.roomView;
+    const viewForC = manager.buildViews(room).find((view) => view.socketId === "s3")?.roomView;
+
+    expect(reveal.targetSeat).toBe(1);
+    expect(reveal.cards).toHaveLength(3);
+
+    expect(viewForA?.players.find((player) => player.seat === 0)?.hand).toBeUndefined();
+    expect(viewForA?.players.find((player) => player.seat === 1)?.hand).toBeUndefined();
+    expect(viewForA?.players.find((player) => player.seat === 2)?.hand).toBeUndefined();
+
+    expect(viewForB?.players.find((player) => player.seat === 0)?.hand).toBeUndefined();
+    expect(viewForB?.players.find((player) => player.seat === 1)?.hand).toBeUndefined();
+    expect(viewForB?.players.find((player) => player.seat === 2)?.hand).toBeUndefined();
+
+    expect(viewForC?.players.find((player) => player.seat === 0)?.hand).toBeUndefined();
+    expect(viewForC?.players.find((player) => player.seat === 1)?.hand).toBeUndefined();
   });
 
   it("limits blind players to 1/2 and seen players to 1/2/5", () => {

@@ -22,6 +22,7 @@ import type {
   PlayerView,
   RoomView,
   RoundResult,
+  ZjhCompareReveal,
   ZjhRoomView,
   ZjhRoundResult
 } from "@doudizhu/shared";
@@ -178,6 +179,7 @@ export default function App() {
   const [zjhMaxPlayers, setZjhMaxPlayers] = useState(4);
   const [room, setRoom] = useState<RoomView | null>(null);
   const [zjhRoom, setZjhRoom] = useState<ZjhRoomView | null>(null);
+  const [zjhCompareReveal, setZjhCompareReveal] = useState<ZjhCompareReveal | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [toast, setToast] = useState<string>("");
   const [endedNotice, setEndedNotice] = useState<string>("");
@@ -201,6 +203,8 @@ export default function App() {
     setLeaveConfirmOpen(false);
     setRoom(null);
     setZjhRoom(null);
+    setZjhCompareReveal(null);
+    setZjhCompareReveal(null);
     setSelectedIds(new Set());
     setEndedNotice("");
     setZjhEndedNotice("");
@@ -279,6 +283,10 @@ export default function App() {
       }
     }
 
+    function onZjhCompareReveal({ reveal }: { reveal: ZjhCompareReveal }) {
+      setZjhCompareReveal(reveal);
+    }
+
     function onGameError({ code, message }: { code: string; message: string }) {
       if (["NO_ROOM", "NO_PLAYER", "ROOM_NOT_FOUND"].includes(code)) {
         resetRoomSession(message);
@@ -325,6 +333,7 @@ export default function App() {
     socket.on("disconnect", onDisconnect);
     socket.on("room:state", onRoomState);
     socket.on("zjh:room:state", onZjhRoomState);
+    socket.on("zjh:compare:reveal", onZjhCompareReveal);
     socket.on("game:error", onGameError);
     socket.on("game:ended", onGameEnded);
     socket.on("zjh:game:ended", onZjhGameEnded);
@@ -337,6 +346,7 @@ export default function App() {
       socket.off("disconnect", onDisconnect);
       socket.off("room:state", onRoomState);
       socket.off("zjh:room:state", onZjhRoomState);
+      socket.off("zjh:compare:reveal", onZjhCompareReveal);
       socket.off("game:error", onGameError);
       socket.off("game:ended", onGameEnded);
       socket.off("zjh:game:ended", onZjhGameEnded);
@@ -354,6 +364,15 @@ export default function App() {
     const timer = window.setTimeout(() => setToast(""), 3600);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    if (!zjhCompareReveal) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => setZjhCompareReveal(null), 3200);
+    return () => window.clearTimeout(timer);
+  }, [zjhCompareReveal]);
 
   useEffect(() => {
     const storedToken = readStoredToken();
@@ -715,6 +734,7 @@ export default function App() {
           room={zjhRoom}
           connected={connected}
           notice={zjhEndedNotice}
+          compareReveal={zjhCompareReveal}
           onReady={() => socket.emit("zjh:game:ready")}
           onSee={() => socket.emit("zjh:action:see")}
           onCall={() => socket.emit("zjh:action:call")}

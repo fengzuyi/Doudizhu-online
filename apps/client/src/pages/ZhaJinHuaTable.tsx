@@ -13,12 +13,13 @@ import {
   Swords
 } from "lucide-react";
 import { getZjhBetTier, ZJH_BLIND_BETS, ZJH_SEEN_BETS } from "@doudizhu/shared";
-import type { Card, ZjhPlayerView, ZjhRoomView } from "@doudizhu/shared";
+import type { Card, ZjhCompareReveal, ZjhPlayerView, ZjhRoomView } from "@doudizhu/shared";
 
 interface ZhaJinHuaTableProps {
   room: ZjhRoomView;
   connected: boolean;
   notice: string;
+  compareReveal?: ZjhCompareReveal | null;
   onReady: () => void;
   onSee: () => void;
   onCall: () => void;
@@ -34,6 +35,7 @@ export function ZhaJinHuaTable({
   room,
   connected,
   notice,
+  compareReveal,
   onReady,
   onSee,
   onCall,
@@ -146,6 +148,7 @@ export function ZhaJinHuaTable({
       </main>
 
       {room.phase === "ended" && <ZjhResultDialog room={room} notice={notice} onReady={onReady} />}
+      {compareReveal && <ZjhCompareRevealPanel reveal={compareReveal} />}
     </>
   );
 }
@@ -261,6 +264,13 @@ function ZjhSeat({ player, active, self, banker }: { player: ZjhPlayerView; acti
       </p>
       <p>积分 {player.score} · 已下 {player.invested}</p>
       {player.lastAction && <em>{player.lastAction}</em>}
+      {player.hand && (
+        <div className="zjh-seat-cards" aria-label={`${player.nickname} 的明牌`}>
+          {player.hand.map((card) => (
+            <ZjhCard key={card.id} card={card} />
+          ))}
+        </div>
+      )}
     </article>
   );
 }
@@ -313,6 +323,23 @@ function ZjhResultDialog({ room, notice, onReady }: { room: ZjhRoomView; notice:
         </button>
       </section>
     </div>
+  );
+}
+
+function ZjhCompareRevealPanel({ reveal }: { reveal: ZjhCompareReveal }) {
+  return (
+    <section className="zjh-compare-reveal" aria-live="polite" aria-label="比牌亮牌">
+      <div>
+        <span>比牌查看</span>
+        <strong>{reveal.targetNickname}</strong>
+        <small>{reveal.handLabel} · 稍后自动隐藏</small>
+      </div>
+      <div className="zjh-compare-reveal-cards">
+        {reveal.cards.map((card) => (
+          <ZjhCard key={card.id} card={card} />
+        ))}
+      </div>
+    </section>
   );
 }
 
