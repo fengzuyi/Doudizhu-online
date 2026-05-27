@@ -204,6 +204,7 @@ function ZjhActionBar({
   }
 
   const raiseLevels = self?.seen ? ZJH_SEEN_BETS : ZJH_BLIND_BETS;
+  const canCompare = room.round > 1 && (Boolean(self?.seen) || compareTargets.length <= 1);
 
   return (
     <div className="zjh-actions">
@@ -234,14 +235,18 @@ function ZjhActionBar({
           );
         })}
       </div>
-      <div className="zjh-compare-group" aria-label="比牌">
-        {compareTargets.map((target) => (
-          <button type="button" key={target.seat} onClick={() => onCompare(target.seat)}>
-            <Swords size={17} aria-hidden="true" />
-            比 {target.nickname}
-          </button>
-        ))}
-      </div>
+      {canCompare ? (
+        <div className="zjh-compare-group" aria-label="比牌">
+          {compareTargets.map((target) => (
+            <button type="button" key={target.seat} onClick={() => onCompare(target.seat)}>
+              <Swords size={17} aria-hidden="true" />
+              比 {target.nickname}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <span className="zjh-action-hint">{room.round <= 1 ? "第一轮后可比牌" : "未看牌只剩两人时可比牌"}</span>
+      )}
     </div>
   );
 }

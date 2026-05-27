@@ -3463,6 +3463,19 @@ button.playing-card.selectable:hover:not(:disabled) {
   padding: 0 8px;
 }
 
+.zjh-action-hint {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0 14px;
+  background: rgba(255, 253, 246, 0.72);
+  border: 1px solid rgba(23, 57, 43, 0.1);
+  color: #667872;
+  font-size: 14px;
+}
+
 .zjh-raise-group,
 .zjh-compare-group {
   display: flex;

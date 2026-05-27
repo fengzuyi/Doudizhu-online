@@ -298,6 +298,14 @@ export class ZjhRoomManager {
 
   compare(socketId: string, targetSeat: number): { room: ZjhInternalRoom; reveal: ZjhCompareReveal } {
     const { room, player } = this.requireTurn(socketId);
+    const activePlayers = this.activePlayers(room);
+    if (room.round <= 1) {
+      throw new GameException("COMPARE_TOO_EARLY", "第一轮结束前不能比牌。");
+    }
+    if (!player.seen && activePlayers.length > 2) {
+      throw new GameException("COMPARE_NEEDS_SEEN_HAND", "未看牌玩家只能在只剩两人时主动比牌。");
+    }
+
     const target = room.players[targetSeat];
     if (!target || target.folded || !target.connected) {
       throw new GameException("INVALID_COMPARE_TARGET", "请选择仍在游戏中的玩家比牌。");

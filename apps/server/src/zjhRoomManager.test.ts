@@ -22,6 +22,12 @@ function prepareThreePlayerRoom(rng: () => number = () => 0) {
   return { manager, room };
 }
 
+function finishThreePlayerFirstRound(manager: ZjhRoomManager) {
+  manager.call("s1");
+  manager.call("s2");
+  manager.call("s3");
+}
+
 describe("ZjhRoomManager", () => {
   it("creates, joins, readies and starts a private 3-card round", () => {
     const { manager, room } = prepareRoom();
@@ -68,15 +74,39 @@ describe("ZjhRoomManager", () => {
     expect(room.currentBet).toBe(2);
     expect(room.pot).toBe(4);
 
-    manager.compare("s2", 0);
+    manager.call("s2");
+    expect(room.round).toBe(2);
+
+    manager.compare("s1", 1);
     expect(room.phase).toBe("ended");
-    expect(room.result?.pot).toBe(8);
+    expect(room.result?.pot).toBe(10);
     expect(room.result?.hands).toHaveLength(2);
+  });
+
+  it("rejects compare before the first round ends", () => {
+    const { manager } = prepareRoom(() => 0);
+
+    expect(() => manager.compare("s1", 1)).toThrow(GameException);
+  });
+
+  it("requires unseen players to wait until only two active players remain before comparing", () => {
+    const { manager, room } = prepareThreePlayerRoom(() => 0);
+
+    finishThreePlayerFirstRound(manager);
+    expect(room.round).toBe(2);
+
+    expect(() => manager.compare("s1", 1)).toThrow(GameException);
+
+    manager.fold("s1");
+    expect(room.currentTurn).toBe(1);
+    expect(() => manager.compare("s2", 2)).not.toThrow();
   });
 
   it("sends compared cards only as a one-time reveal to the initiator", () => {
     const { manager, room } = prepareThreePlayerRoom(() => 0);
 
+    finishThreePlayerFirstRound(manager);
+    manager.seeCards("s1");
     const { reveal } = manager.compare("s1", 1);
     expect(room.phase).toBe("playing");
 
@@ -87,7 +117,7 @@ describe("ZjhRoomManager", () => {
     expect(reveal.targetSeat).toBe(1);
     expect(reveal.cards).toHaveLength(3);
 
-    expect(viewForA?.players.find((player) => player.seat === 0)?.hand).toBeUndefined();
+    expect(viewForA?.players.find((player) => player.seat === 0)?.hand).toHaveLength(3);
     expect(viewForA?.players.find((player) => player.seat === 1)?.hand).toBeUndefined();
     expect(viewForA?.players.find((player) => player.seat === 2)?.hand).toBeUndefined();
 
