@@ -31,6 +31,18 @@ const ZJH_POT_CHIP_SRCS = [
 ];
 const ZJH_TURN_RING_SRC = "/assets/flash/0baa0bf0-d89d-419e-be7a-1bca8cc44b53.362fd_1.png";
 const ZJH_MUSIC_SRC = "/assets/audio/zhajinhua.mp3";
+const ZJH_BRAND_SRC = "/assets/pictures/zhajinghua.png";
+const ZJH_BRAND_ROSE_SRC = "/assets/pictures/meigui.png";
+const ZJH_LEFT_PROMOS = [
+  { src: "/assets/pictures/svip.avif", label: "SVIP" },
+  { src: "/assets/pictures/manghechoujiang.avif", label: "盲盒抽奖" },
+  { src: "/assets/pictures/shishifanshui.avif", label: "实时返水" }
+];
+const ZJH_RIGHT_PROMOS = [
+  { src: "/assets/pictures/vip.avif", label: "VIP" },
+  { src: "/assets/pictures/xinrenfuli.avif", label: "新人福利" },
+  { src: "/assets/pictures/dailingqu.avif", label: "待领取" }
+];
 const ZJH_HEAD_ASSETS = [
   "/assets/head/img_ntx10.png",
   "/assets/head/img_ntx12.png",
@@ -171,7 +183,10 @@ export function ZhaJinHuaTable({
       <audio ref={audioRef} src={ZJH_MUSIC_SRC} preload="auto" loop />
       <header className="zjh-header">
         <div className="zjh-header-left">
-          <strong className="zjh-brand">炸金花好友房</strong>
+          <span className="zjh-brand">
+            <img className="zjh-brand-rose" src={ZJH_BRAND_ROSE_SRC} alt="" draggable={false} />
+            <img className="zjh-brand-logo" src={ZJH_BRAND_SRC} alt="炸金花" draggable={false} />
+          </span>
           <span className="zjh-pill room">
             房间 <b>{room.roomCode}</b>
             <button type="button" onClick={onCopyRoomCode} aria-label="复制房间号">
@@ -206,6 +221,9 @@ export function ZhaJinHuaTable({
       </header>
 
       {!connected && <div className="zen-offline-banner">连接已断开，请刷新后重新进入房间。</div>}
+
+      <ZjhPromoRail side="left" promos={ZJH_LEFT_PROMOS} />
+      <ZjhPromoRail side="right" promos={ZJH_RIGHT_PROMOS} />
 
       <main className="zjh-main">
         <section className="zjh-table" aria-label="炸金花牌桌">
@@ -286,6 +304,18 @@ export function ZhaJinHuaTable({
 
       {room.phase === "ended" && <ZjhResultDialog room={room} notice={notice} onReady={onReady} />}
     </>
+  );
+}
+
+function ZjhPromoRail({ side, promos }: { side: "left" | "right"; promos: Array<{ src: string; label: string }> }) {
+  return (
+    <aside className={`zjh-promo-rail ${side}`} aria-label={side === "left" ? "左侧活动" : "右侧活动"}>
+      {promos.map((promo) => (
+        <button className="zjh-promo-card" type="button" key={promo.src} aria-label={promo.label}>
+          <img src={promo.src} alt={promo.label} draggable={false} loading="lazy" />
+        </button>
+      ))}
+    </aside>
   );
 }
 

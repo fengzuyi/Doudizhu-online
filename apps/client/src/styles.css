@@ -4241,8 +4241,8 @@ button.playing-card.selectable:hover:not(:disabled) {
   }
 
   .zjh-brand {
-    width: 100%;
-    text-align: center;
+    width: min(100%, 164px);
+    margin: 0 auto;
   }
 
   .zjh-pill,
@@ -4429,6 +4429,45 @@ button.playing-card.selectable:hover:not(:disabled) {
   z-index: 1;
 }
 
+.zjh-promo-rail {
+  position: fixed;
+  top: clamp(78px, 10vh, 112px);
+  bottom: clamp(76px, 8vh, 94px);
+  z-index: 12;
+  width: clamp(120px, 11.4vw, 232px);
+  display: grid;
+  align-content: space-between;
+  gap: clamp(14px, 3.2vh, 40px);
+  pointer-events: auto;
+}
+
+.zjh-promo-rail.left {
+  left: clamp(8px, 0.8vw, 18px);
+}
+
+.zjh-promo-rail.right {
+  right: clamp(8px, 0.8vw, 18px);
+}
+
+.zjh-promo-card {
+  width: 100%;
+  display: block;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.zjh-promo-card img {
+  width: 100%;
+  max-height: clamp(126px, 23vh, 242px);
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.48));
+  user-select: none;
+}
+
 .zjh-header {
   position: sticky;
   top: 0;
@@ -4442,10 +4481,35 @@ button.playing-card.selectable:hover:not(:disabled) {
 }
 
 .zjh-brand {
-  color: #ffd86b;
-  font-size: clamp(20px, 2vw, 30px);
-  letter-spacing: 0;
-  text-shadow: 0 3px 12px rgba(0, 0, 0, 0.5);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: clamp(2px, 0.2vw, 5px);
+  width: clamp(124px, 8.4vw, 164px);
+  height: clamp(48px, 3.3vw, 62px);
+  margin-right: 10px;
+  line-height: 0;
+}
+
+.zjh-brand img {
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.48));
+  user-select: none;
+  pointer-events: none;
+}
+
+.zjh-brand-rose {
+  width: auto;
+  height: clamp(38px, 2.8vw, 54px);
+  flex: 0 0 auto;
+}
+
+.zjh-brand-logo {
+  width: clamp(94px, 6.4vw, 122px);
+  height: clamp(48px, 3.3vw, 62px);
+  flex: 0 0 auto;
 }
 
 .zjh-pill {
@@ -5003,6 +5067,10 @@ button.zjh-avatar-frame:disabled {
 }
 
 @media (max-width: 980px) {
+  .zjh-promo-rail {
+    display: none;
+  }
+
   .zjh-table {
     width: min(100%, 720px);
     height: max(720px, calc(100dvh - 128px));
