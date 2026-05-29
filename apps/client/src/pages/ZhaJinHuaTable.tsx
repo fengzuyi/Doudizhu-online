@@ -13,7 +13,9 @@ import {
   Settings,
   Shield,
   Sparkles,
-  Swords
+  Swords,
+  Volume2,
+  VolumeX
 } from "lucide-react";
 import { getZjhBetTier, ZJH_BLIND_BETS, ZJH_SEEN_BETS } from "@doudizhu/shared";
 import type { Card, ZjhCompareReveal, ZjhPlayerView, ZjhRoomView } from "@doudizhu/shared";
@@ -27,6 +29,7 @@ const ZJH_POT_CHIP_SRCS = [
   "/assets/chips/chips_stacked_blue.png"
 ];
 const ZJH_TURN_RING_SRC = "/assets/flash/0baa0bf0-d89d-419e-be7a-1bca8cc44b53.362fd_1.png";
+const ZJH_MUSIC_SRC = "/assets/audio/zhajinhua.mp3";
 const ZJH_HEAD_ASSETS = [
   "/assets/head/img_ntx10.png",
   "/assets/head/img_ntx12.png",
@@ -81,6 +84,8 @@ export function ZhaJinHuaTable({
   const compareTargetSeats = new Set(activeOpponents.map((player) => player.seat));
   const [selectingCompareTarget, setSelectingCompareTarget] = useState(false);
   const [showDealAnimation, setShowDealAnimation] = useState(false);
+  const [musicEnabled, setMusicEnabled] = useState(true);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const previousPhaseRef = useRef(room.phase);
 
   useEffect(() => {
@@ -102,6 +107,40 @@ export function ZhaJinHuaTable({
     }
   }, [canCompare, room.currentTurn, room.phase, room.roomCode]);
 
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) {
+      return undefined;
+    }
+
+    audio.volume = 0.35;
+    audio.loop = true;
+
+    if (!musicEnabled) {
+      audio.pause();
+      return undefined;
+    }
+
+    const playMusic = () => {
+      audio.play().catch(() => undefined);
+    };
+
+    playMusic();
+    window.addEventListener("pointerdown", playMusic, { passive: true });
+    window.addEventListener("keydown", playMusic);
+
+    return () => {
+      window.removeEventListener("pointerdown", playMusic);
+      window.removeEventListener("keydown", playMusic);
+    };
+  }, [musicEnabled]);
+
+  useEffect(() => {
+    return () => {
+      audioRef.current?.pause();
+    };
+  }, []);
+
   function compareWithSeat(seat: number) {
     if (!selectingCompareTarget || !compareTargetSeats.has(seat)) {
       return;
@@ -111,8 +150,22 @@ export function ZhaJinHuaTable({
     onCompare(seat);
   }
 
+  function toggleMusic() {
+    setMusicEnabled((enabled) => {
+      const nextEnabled = !enabled;
+      const audio = audioRef.current;
+      if (nextEnabled) {
+        audio?.play().catch(() => undefined);
+      } else {
+        audio?.pause();
+      }
+      return nextEnabled;
+    });
+  }
+
   return (
     <>
+      <audio ref={audioRef} src={ZJH_MUSIC_SRC} preload="auto" loop />
       <header className="zjh-header">
         <div className="zjh-header-left">
           <strong className="zjh-brand">炸金花好友房</strong>
@@ -138,6 +191,9 @@ export function ZhaJinHuaTable({
           </button>
           <button className="zen-icon-button" type="button" onClick={() => onInfo("帮助中心将在正式版开放。")} aria-label="帮助">
             <HelpCircle size={18} aria-hidden="true" />
+          </button>
+          <button className="zen-icon-button" type="button" onClick={toggleMusic} aria-label={musicEnabled ? "关闭背景音乐" : "开启背景音乐"}>
+            {musicEnabled ? <Volume2 size={18} aria-hidden="true" /> : <VolumeX size={18} aria-hidden="true" />}
           </button>
           <button className="zen-leave-button" type="button" onClick={onLeave}>
             <LogOut size={18} aria-hidden="true" />
