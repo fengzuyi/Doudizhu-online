@@ -3581,22 +3581,40 @@ button.playing-card.selectable:hover:not(:disabled) {
 }
 
 .zjh-result-dialog {
-  width: min(720px, calc(100vw - 28px));
+  width: min(500px, calc(100vw - 28px));
+  max-height: calc(100dvh - 40px);
+  gap: 12px;
+  overflow: hidden;
+}
+
+.zjh-result-dialog h2 {
+  font-size: 22px;
+}
+
+.zjh-result-dialog h2,
+.zjh-result-dialog>p {
+  justify-self: center;
+  text-align: center;
 }
 
 .zjh-result-hands {
   display: grid;
-  gap: 10px;
-  margin: 18px 0;
+  gap: 9px;
+  max-height: min(44vh, 390px);
+  margin: 10px 0 14px;
+  padding-right: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .zjh-result-row {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) auto auto;
+  grid-template-columns: minmax(52px, 0.45fr) minmax(220px, 1fr) auto;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   border-radius: 8px;
-  padding: 10px;
+  padding: 9px 10px;
   background: rgba(255, 253, 246, 0.88);
   color: var(--ink);
 }
@@ -3609,6 +3627,20 @@ button.playing-card.selectable:hover:not(:disabled) {
 .zjh-result-row span {
   color: #667872;
   font-weight: 800;
+}
+
+.zjh-result-card-group {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.zjh-result-hand-type {
+  flex: 0 0 58px;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .zjh-result-row .zjh-card {
@@ -4177,6 +4209,14 @@ button.playing-card.selectable:hover:not(:disabled) {
 
   .zjh-result-row {
     grid-template-columns: 1fr;
+  }
+
+  .zjh-result-card-group {
+    justify-content: space-between;
+  }
+
+  .zjh-result-hand-type {
+    text-align: left;
   }
 
   .dbz-main {

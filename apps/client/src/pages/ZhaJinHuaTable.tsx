@@ -593,24 +593,26 @@ function getZjhCardImageSrc(card: Card) {
   return `${ZJH_ASSET_BASE}/cards/card_${suitName[card.suit]}_${rankName[card.rank]}.png`;
 }
 
-function ZjhResultDialog({ room, notice, onReady }: { room: ZjhRoomView; notice: string; onReady: () => void }) {
+function ZjhResultDialog({ room, onReady }: { room: ZjhRoomView; notice: string; onReady: () => void }) {
   const result = room.result;
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="zjh-result-title">
       <section className="result-dialog zjh-result-dialog">
-        <h2 id="zjh-result-title">{notice || room.message || "本局结束"}</h2>
+        <h2 id="zjh-result-title">本局结算</h2>
         {result && <p>底池 {result.pot} 分</p>}
         <div className="zjh-result-hands">
           {result?.hands.map((hand) => (
             <div className="zjh-result-row" key={hand.seat}>
               <div>
                 <strong>{hand.nickname}</strong>
-                <span>{hand.folded ? "弃牌" : hand.handLabel}</span>
               </div>
-              <div className="mini-card-row">
-                {hand.cards.map((card) => (
-                  <ZjhCard key={card.id} card={card} />
-                ))}
+              <div className="zjh-result-card-group">
+                <span className="zjh-result-hand-type">{hand.folded ? "弃牌" : hand.handLabel}</span>
+                <div className="mini-card-row">
+                  {hand.cards.map((card) => (
+                    <ZjhCard key={card.id} card={card} />
+                  ))}
+                </div>
               </div>
               <b className={(result.scores[hand.seat] ?? 0) >= 0 ? "score plus" : "score minus"}>
                 {(result.scores[hand.seat] ?? 0) >= 0 ? "+" : ""}
