@@ -19,6 +19,18 @@ import type { Card, ZjhCompareReveal, ZjhPlayerView, ZjhRoomView } from "@doudiz
 
 const ZJH_ASSET_BASE = "/assets/zhajinhua";
 const ZJH_CARD_BACK_SRC = `${ZJH_ASSET_BASE}/card_back/red_back_line.png`;
+const ZJH_HEAD_ASSETS = [
+  "/assets/head/img_ntx10.png",
+  "/assets/head/img_ntx12.png",
+  "/assets/head/img_ntx3.png",
+  "/assets/head/img_ntx7.png",
+  "/assets/head/img_ntx9.png",
+  "/assets/head/img_txn10.png",
+  "/assets/head/img_txn2.png",
+  "/assets/head/img_txn33.png",
+  "/assets/head/img_txn5.png",
+  "/assets/head/img_txn8.png"
+];
 
 interface ZhaJinHuaTableProps {
   room: ZjhRoomView;
@@ -52,6 +64,8 @@ export function ZhaJinHuaTable({
   onInfo
 }: ZhaJinHuaTableProps) {
   const self = room.players.find((player) => player.seat === room.selfSeat);
+  const tableSeatCount = Math.min(Math.max(room.maxPlayers, room.players.length, 2), 12);
+  const tableSeatSlots = buildZjhSeatSlots(room.players, tableSeatCount, room.selfSeat);
   const opponents = room.players.filter((player) => player.seat !== room.selfSeat);
   const activeOpponents = opponents.filter((player) => player.connected && !player.folded && room.phase === "playing");
   const isMyTurn = room.phase === "playing" && room.currentTurn === room.selfSeat;
@@ -122,21 +136,22 @@ export function ZhaJinHuaTable({
             <div className="zjh-card-shoe" />
           </div>
           {showDealAnimation && <ZjhDealAnimation players={room.players} selfSeat={room.selfSeat} />}
-          <div className="zjh-opponents">
-            {opponents.map((player) => (
-              <ZjhSeat
-                key={player.seat}
-                player={player}
-                active={room.currentTurn === player.seat}
-                self={false}
-                banker={room.bankerSeat === player.seat}
-              />
-            ))}
-            {Array.from({ length: room.maxPlayers - room.players.length }).map((_, index) => (
-              <div className="zjh-empty-seat" key={index}>
-                等待入座
-              </div>
-            ))}
+          <div className="zjh-seat-ring" aria-label="玩家座位">
+            {tableSeatSlots.map(({ seat, player }, index) =>
+              player ? (
+                <ZjhSeat
+                  key={player.seat}
+                  player={player}
+                  active={room.currentTurn === player.seat}
+                  self={player.seat === room.selfSeat}
+                  banker={room.bankerSeat === player.seat}
+                  phase={room.phase}
+                  style={getZjhSeatOrbitStyle(index, tableSeatCount)}
+                />
+              ) : (
+                <ZjhEmptySeat key={`empty-${seat}`} seat={seat} style={getZjhSeatOrbitStyle(index, tableSeatCount)} />
+              )
+            )}
           </div>
 
           <section className="zjh-center">
@@ -145,10 +160,12 @@ export function ZhaJinHuaTable({
               <strong>{room.pot}</strong>
               <small>基础底注 {room.baseAnte}</small>
             </div>
-            <div className="zjh-message">
-              <Sparkles size={18} aria-hidden="true" />
-              {room.message ?? "等待玩家操作"}
-            </div>
+            {room.phase !== "lobby" && (
+              <div className="zjh-message">
+                <Sparkles size={18} aria-hidden="true" />
+                {room.message ?? "等待玩家操作"}
+              </div>
+            )}
             <ZjhActionBar
               room={room}
               self={self}
@@ -164,7 +181,6 @@ export function ZhaJinHuaTable({
           </section>
 
           <section className="zjh-self-zone" aria-label="我的牌">
-            {self && <ZjhSeat player={self} active={room.currentTurn === self.seat} self banker={room.bankerSeat === self.seat} />}
             <div className="zjh-hand">
               {room.phase === "lobby" || !self ? (
                 <span className="zjh-hand-placeholder">准备后发牌</span>
@@ -209,12 +225,11 @@ function ZjhActionBar({
 }) {
   if (room.phase === "lobby") {
     return (
-      <div className="zjh-actions">
+      <div className="zjh-actions zjh-ready-actions">
         <button className="primary-btn" type="button" onClick={onReady} disabled={self?.ready}>
           <Play size={18} aria-hidden="true" />
           {self?.ready ? "已准备" : "准备"}
         </button>
-        <span>{room.playerCount >= 2 ? "全员准备后开始" : "至少 2 人开局"}</span>
       </div>
     );
   }
@@ -282,32 +297,89 @@ function ZjhActionBar({
   );
 }
 
-function ZjhSeat({ player, active, self, banker }: { player: ZjhPlayerView; active: boolean; self: boolean; banker: boolean }) {
+interface ZjhOrbitStyle extends CSSProperties {
+  "--seat-left": string;
+  "--seat-top": string;
+}
+
+function buildZjhSeatSlots(players: ZjhPlayerView[], seatCount: number, selfSeat?: number) {
+  const playersBySeat = new Map(players.map((player) => [player.seat, player]));
+  const startSeat = selfSeat ?? 0;
+
+  return Array.from({ length: seatCount }, (_, index) => {
+    const seat = (startSeat + index) % seatCount;
+    return { seat, player: playersBySeat.get(seat) };
+  });
+}
+
+function getZjhSeatOrbitStyle(index: number, total: number): ZjhOrbitStyle {
+  const angle = (90 + (index * 360) / total) * (Math.PI / 180);
+  const x = Math.cos(angle) * 42;
+  const y = Math.sin(angle) * 35;
+
+  return {
+    "--seat-left": `${x.toFixed(3)}%`,
+    "--seat-top": `${y.toFixed(3)}%`
+  };
+}
+
+function getZjhAvatarSrc(seat: number) {
+  return ZJH_HEAD_ASSETS[((seat % ZJH_HEAD_ASSETS.length) + ZJH_HEAD_ASSETS.length) % ZJH_HEAD_ASSETS.length];
+}
+
+function ZjhSeat({
+  player,
+  active,
+  self,
+  banker,
+  phase,
+  style
+}: {
+  player: ZjhPlayerView;
+  active: boolean;
+  self: boolean;
+  banker: boolean;
+  phase: ZjhRoomView["phase"];
+  style: ZjhOrbitStyle;
+}) {
+  const showReady = phase === "lobby";
+  const seenLabel = player.folded ? "已弃牌" : player.seen ? "已看牌" : "未看牌";
+
   return (
-    <article className={`zjh-seat ${active ? "active" : ""} ${player.folded ? "folded" : ""} ${self ? "self" : ""}`}>
-      <div className="zjh-seat-head">
-        <strong>{self ? "你" : `座位 ${player.seat + 1}`}</strong>
+    <article
+      className={`zjh-seat ${active ? "active" : ""} ${player.folded ? "folded" : ""} ${self ? "self" : ""}`}
+      style={style}
+    >
+      <div className="zjh-avatar-frame">
+        <img src={getZjhAvatarSrc(player.seat)} alt={`${player.nickname}头像`} draggable={false} />
+        <span className="zjh-avatar-name">{self ? "你" : player.nickname}</span>
         {banker && (
-          <span>
-            <Crown size={14} aria-hidden="true" />
+          <span className="zjh-seat-badge">
+            <Crown size={12} aria-hidden="true" />
             先手
           </span>
         )}
       </div>
-      <h3>{player.nickname}</h3>
-      <p>
-        {player.cardCount || 0} 张 · {player.connected ? "在线" : "离线"} · {player.seen ? "已看" : "未看"}
-      </p>
-      <p>积分 {player.score} · 已下 {player.invested}</p>
-      {player.lastAction && <em>{player.lastAction}</em>}
-      {player.hand && (
-        <div className="zjh-seat-cards" aria-label={`${player.nickname} 的明牌`}>
-          {player.hand.map((card) => (
-            <ZjhCard key={card.id} card={card} />
-          ))}
-        </div>
-      )}
+      <div className="zjh-seat-meta">
+        <span>{seenLabel}</span>
+        <span>积分 {player.score}</span>
+        <span>已下注 {player.invested}</span>
+        {showReady && <span>{player.ready ? "已准备" : "未准备"}</span>}
+      </div>
     </article>
+  );
+}
+
+function ZjhEmptySeat({ seat, style }: { seat: number; style: ZjhOrbitStyle }) {
+  return (
+    <div className="zjh-empty-seat" style={style}>
+      <div className="zjh-avatar-frame empty">
+        <span>{seat + 1}</span>
+      </div>
+      <div className="zjh-seat-meta">
+        <span>等待入座</span>
+      </div>
+    </div>
   );
 }
 
