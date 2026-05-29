@@ -342,7 +342,7 @@ function ZjhSeat({
 }) {
   const showReady = phase === "lobby";
   const showSeen = phase !== "lobby";
-  const scoreSide = Number.parseFloat(style["--seat-left"]) < 0 ? "left" : "right";
+  const scoreSide = Number.parseFloat(style["--seat-left"]) < 0 ? "right" : "left";
   const seenLabel = player.folded ? "已弃牌" : player.seen ? "已看牌" : "未看牌";
 
   return (
