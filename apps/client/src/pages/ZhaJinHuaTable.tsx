@@ -9,6 +9,8 @@ import {
   Eye,
   HelpCircle,
   LogOut,
+  Maximize2,
+  Minimize2,
   Play,
   Settings,
   Shield,
@@ -100,6 +102,7 @@ export function ZhaJinHuaTable({
   const [musicEnabled, setMusicEnabled] = useState(true);
   const [musicVolume, setMusicVolume] = useState(0.35);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const previousPhaseRef = useRef(room.phase);
 
@@ -156,6 +159,19 @@ export function ZhaJinHuaTable({
     };
   }, []);
 
+  useEffect(() => {
+    const syncFullscreenState = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+
+    syncFullscreenState();
+    document.addEventListener("fullscreenchange", syncFullscreenState);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", syncFullscreenState);
+    };
+  }, []);
+
   function compareWithSeat(seat: number) {
     if (!selectingCompareTarget || !compareTargetSeats.has(seat)) {
       return;
@@ -176,6 +192,21 @@ export function ZhaJinHuaTable({
       }
       return nextEnabled;
     });
+  }
+
+  async function toggleFullscreen() {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen().catch(() => onInfo("退出全屏失败，请重试。"));
+      return;
+    }
+
+    const target = document.querySelector<HTMLElement>(".zjh-game-shell") ?? document.documentElement;
+    if (!target.requestFullscreen) {
+      onInfo("当前浏览器不支持全屏模式。");
+      return;
+    }
+
+    await target.requestFullscreen().catch(() => onInfo("全屏模式需要浏览器允许后才能开启。"));
   }
 
   return (
@@ -212,6 +243,9 @@ export function ZhaJinHuaTable({
           </button>
           <button className="zen-icon-button" type="button" onClick={toggleMusic} aria-label={musicEnabled ? "关闭背景音乐" : "开启背景音乐"}>
             {musicEnabled ? <Volume2 size={18} aria-hidden="true" /> : <VolumeX size={18} aria-hidden="true" />}
+          </button>
+          <button className="zen-icon-button" type="button" onClick={toggleFullscreen} aria-label={isFullscreen ? "退出全屏" : "进入全屏"}>
+            {isFullscreen ? <Minimize2 size={18} aria-hidden="true" /> : <Maximize2 size={18} aria-hidden="true" />}
           </button>
           <button className="zen-leave-button" type="button" onClick={onLeave}>
             <LogOut size={18} aria-hidden="true" />

@@ -4391,10 +4391,20 @@ button.playing-card.selectable:hover:not(:disabled) {
 .zjh-game-shell {
   position: relative;
   isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
   min-height: 100dvh;
-  overflow-x: hidden;
+  overflow: hidden;
   color: #f3fbff;
   background: #07101d;
+}
+
+.zjh-game-shell:fullscreen {
+  width: 100vw;
+  height: 100vh;
 }
 
 .zjh-game-shell::before {
@@ -4472,6 +4482,7 @@ button.playing-card.selectable:hover:not(:disabled) {
   position: sticky;
   top: 0;
   z-index: 30;
+  flex: 0 0 auto;
   min-height: 64px;
   padding: 10px clamp(14px, 2.4vw, 28px);
   border-bottom: 0;
@@ -4527,17 +4538,19 @@ button.playing-card.selectable:hover:not(:disabled) {
 }
 
 .zjh-main {
-  min-height: calc(100dvh - 64px);
+  flex: 1 1 auto;
+  min-height: 0;
   padding: clamp(8px, 1.8vw, 18px);
   display: flex;
   justify-content: center;
   align-items: stretch;
+  overflow: hidden;
 }
 
 .zjh-table {
   position: relative;
   width: min(100%, 1180px);
-  height: max(720px, calc(100dvh - 92px));
+  height: 100%;
   min-height: 0;
   padding: 0;
   overflow: hidden;
@@ -5073,7 +5086,7 @@ button.zjh-avatar-frame:disabled {
 
   .zjh-table {
     width: min(100%, 720px);
-    height: max(720px, calc(100dvh - 128px));
+    height: 100%;
   }
 
   .zjh-opponents {
@@ -5125,13 +5138,13 @@ button.zjh-avatar-frame:disabled {
   }
 
   .zjh-main {
-    min-height: auto;
+    min-height: 0;
     padding: 0;
   }
 
   .zjh-table {
     width: 100vw;
-    height: max(680px, calc(100dvh - 178px));
+    height: 100%;
     border: 0;
     border-radius: 0;
   }
