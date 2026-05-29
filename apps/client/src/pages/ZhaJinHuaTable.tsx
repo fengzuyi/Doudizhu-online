@@ -436,8 +436,17 @@ function ZjhSeat({
   const showReady = phase === "lobby";
   const showSeen = phase !== "lobby";
   const seatLeft = Number.parseFloat(style["--seat-left"]);
+  const seatTop = Number.parseFloat(style["--seat-top"]);
   const scoreSide = seatLeft > 0 ? "left" : "right";
-  const cardSide = self ? "self" : seatLeft < -4 ? "left-table" : seatLeft > 4 ? "right-table" : "center-table";
+  const cardSide = self
+    ? "self"
+    : seatTop < -24
+      ? "top-table"
+      : seatLeft < -4
+        ? "left-table"
+        : seatLeft > 4
+          ? "right-table"
+          : "center-table";
   const seenLabel = player.folded ? "已弃牌" : player.seen ? "已看牌" : "未看牌";
   const visibleCards = player.hand ?? [];
   const cardBackCount = Math.min(player.cardCount || 3, 3);
