@@ -4327,7 +4327,7 @@ button.playing-card.selectable:hover:not(:disabled) {
 .zjh-empty-seat {
   position: absolute;
   left: calc(50% + var(--seat-left));
-  top: calc(50% + var(--seat-top));
+  top: calc(55% + var(--seat-top));
   width: 96px;
   min-height: 0;
   padding: 0;
@@ -4547,7 +4547,7 @@ button.playing-card.selectable:hover:not(:disabled) {
   background: transparent;
   box-shadow: none;
   backdrop-filter: none;
-  transform: translateY(34px);
+  transform: translateY(70px);
 }
 
 .zjh-actions button,

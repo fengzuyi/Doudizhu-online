@@ -312,7 +312,7 @@ function buildZjhSeatSlots(players: ZjhPlayerView[], seatCount: number, selfSeat
 
 function getZjhSeatOrbitStyle(index: number, total: number): ZjhOrbitStyle {
   const angle = (90 + (index * 360) / total) * (Math.PI / 180);
-  const x = Math.cos(angle) * 42;
+  const x = Math.cos(angle) * 50;
   const y = Math.sin(angle) * 35;
 
   return {
@@ -342,7 +342,7 @@ function ZjhSeat({
 }) {
   const showReady = phase === "lobby";
   const showSeen = phase !== "lobby";
-  const scoreSide = Number.parseFloat(style["--seat-left"]) < 0 ? "right" : "left";
+            const scoreSide = Number.parseFloat(style["--seat-left"]) > 0 ? "left" : "right";
   const seenLabel = player.folded ? "已弃牌" : player.seen ? "已看牌" : "未看牌";
 
   return (
