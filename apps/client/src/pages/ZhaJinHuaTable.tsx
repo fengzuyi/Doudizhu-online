@@ -17,6 +17,9 @@ import {
 import { getZjhBetTier, ZJH_BLIND_BETS, ZJH_SEEN_BETS } from "@doudizhu/shared";
 import type { Card, ZjhCompareReveal, ZjhPlayerView, ZjhRoomView } from "@doudizhu/shared";
 
+const ZJH_ASSET_BASE = "/assets/zhajinhua";
+const ZJH_CARD_BACK_SRC = `${ZJH_ASSET_BASE}/card_back/red_back_line.png`;
+
 interface ZhaJinHuaTableProps {
   room: ZjhRoomView;
   connected: boolean;
@@ -367,14 +370,16 @@ function ZjhCard({ card }: { card: Card }) {
 function ZjhCardBack() {
   return (
     <div className="card-back zjh-card-back" aria-hidden="true">
-      <img src="/casino/cards/blue_back_intricate.png" alt="" draggable={false} loading="lazy" />
+      <img src={ZJH_CARD_BACK_SRC} alt="" draggable={false} loading="lazy" />
     </div>
   );
 }
 
 function getZjhCardImageSrc(card: Card) {
   if (card.suit === "joker") {
-    return card.color === "red" ? "/casino/cards/card_joker_red.png" : "/casino/cards/card_joker_black.png";
+    return card.color === "red"
+      ? `${ZJH_ASSET_BASE}/cards/card_joker_red.png`
+      : `${ZJH_ASSET_BASE}/cards/card_joker_black.png`;
   }
 
   const suitName: Record<Exclude<Card["suit"], "joker">, string> = {
@@ -401,7 +406,7 @@ function getZjhCardImageSrc(card: Card) {
     BJ: "joker_red"
   };
 
-  return `/casino/cards/card_${suitName[card.suit]}_${rankName[card.rank]}.png`;
+  return `${ZJH_ASSET_BASE}/cards/card_${suitName[card.suit]}_${rankName[card.rank]}.png`;
 }
 
 function ZjhResultDialog({ room, notice, onReady }: { room: ZjhRoomView; notice: string; onReady: () => void }) {
