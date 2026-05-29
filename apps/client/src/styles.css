@@ -4566,12 +4566,46 @@ button.zjh-avatar-frame:disabled {
   right: calc(50% + 34px);
 }
 
-.zjh-score-chip img,
-.zjh-pot img {
+.zjh-score-chip img {
   width: 20px;
   height: 20px;
   display: block;
   object-fit: contain;
+}
+
+.zjh-pot-stack {
+  position: relative;
+  width: 48px;
+  height: 30px;
+  display: block;
+  flex: 0 0 auto;
+}
+
+.zjh-pot-stack img {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.32));
+}
+
+.zjh-pot-chip.chip-1 {
+  left: 0;
+  top: 4px;
+  z-index: 1;
+}
+
+.zjh-pot-chip.chip-2 {
+  left: 11px;
+  top: 0;
+  z-index: 2;
+}
+
+.zjh-pot-chip.chip-3 {
+  left: 22px;
+  top: 5px;
+  z-index: 3;
 }
 
 .zjh-score-chip span {

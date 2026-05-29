@@ -21,6 +21,11 @@ import type { Card, ZjhCompareReveal, ZjhPlayerView, ZjhRoomView } from "@doudiz
 const ZJH_ASSET_BASE = "/assets/zhajinhua";
 const ZJH_CARD_BACK_SRC = `${ZJH_ASSET_BASE}/card_back/red_back_line.png`;
 const ZJH_CHIP_SRC = "/assets/chips/chips_stacked_green.png";
+const ZJH_POT_CHIP_SRCS = [
+  ZJH_CHIP_SRC,
+  "/assets/chips/chips_stacked_red.png",
+  "/assets/chips/chips_stacked_blue.png"
+];
 const ZJH_HEAD_ASSETS = [
   "/assets/head/img_ntx10.png",
   "/assets/head/img_ntx12.png",
@@ -177,7 +182,11 @@ export function ZhaJinHuaTable({
 
           <section className="zjh-center">
             <div className="zjh-pot" aria-label={`底池 ${room.pot}`}>
-              <img src={ZJH_CHIP_SRC} alt="" draggable={false} />
+              <span className="zjh-pot-stack" aria-hidden="true">
+                {ZJH_POT_CHIP_SRCS.map((src, index) => (
+                  <img key={src} className={`zjh-pot-chip chip-${index + 1}`} src={src} alt="" draggable={false} />
+                ))}
+              </span>
               <strong>{room.pot}</strong>
             </div>
             {room.phase !== "lobby" && (
