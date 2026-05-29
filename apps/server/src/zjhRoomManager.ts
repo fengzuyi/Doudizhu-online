@@ -201,7 +201,14 @@ export class ZjhRoomManager {
   }
 
   seeCards(socketId: string): ZjhInternalRoom {
-    const { room, player } = this.requireTurn(socketId);
+    const room = this.requireRoomForSocket(socketId);
+    const player = this.requirePlayer(room, socketId);
+    if (room.phase !== "playing") {
+      throw new GameException("NOT_PLAYING", "当前还没有开始下注。");
+    }
+    if (player.folded) {
+      throw new GameException("PLAYER_FOLDED", "你已经弃牌。");
+    }
     if (player.seen) {
       throw new GameException("ALREADY_SEEN", "你已经看过牌。");
     }

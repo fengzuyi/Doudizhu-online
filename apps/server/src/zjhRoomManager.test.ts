@@ -55,6 +55,19 @@ describe("ZjhRoomManager", () => {
     expect(() => manager.call(wrongSocket)).toThrow(GameException);
   });
 
+  it("allows players to see cards outside their turn", () => {
+    const { manager, room } = prepareRoom();
+    const currentTurn = room.currentTurn;
+    const wrongSocket = currentTurn === 0 ? "s2" : "s1";
+    const wrongSeat = currentTurn === 0 ? 1 : 0;
+
+    expect(() => manager.seeCards(wrongSocket)).not.toThrow();
+
+    const wrongView = manager.buildViews(room).find((view) => view.socketId === wrongSocket)?.roomView;
+    expect(wrongView?.players.find((player) => player.seat === wrongSeat)?.hand).toHaveLength(3);
+    expect(room.currentTurn).toBe(currentTurn);
+  });
+
   it("advances after follow and ends when the other player folds", () => {
     const { manager, room } = prepareRoom(() => 0);
 

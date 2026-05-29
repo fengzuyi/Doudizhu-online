@@ -273,7 +273,21 @@ function ZjhActionBar({
   }
 
   if (!isMyTurn) {
-    return null;
+    return (
+      <div className="zjh-actions zjh-play-actions zjh-see-actions">
+        <button
+          type="button"
+          onClick={() => {
+            onCancelCompare();
+            onSee();
+          }}
+          disabled={self?.seen || self?.folded}
+        >
+          <Eye size={18} aria-hidden="true" />
+          {self?.seen ? "已看牌" : "看牌"}
+        </button>
+      </div>
+    );
   }
 
   const raiseLevels = self?.seen ? ZJH_SEEN_BETS : ZJH_BLIND_BETS;
@@ -294,7 +308,7 @@ function ZjhActionBar({
           onCancelCompare();
           onSee();
         }}
-        disabled={self?.seen}
+        disabled={self?.seen || self?.folded}
       >
         <Eye size={18} aria-hidden="true" />
         {self?.seen ? "已看牌" : "看牌"}
