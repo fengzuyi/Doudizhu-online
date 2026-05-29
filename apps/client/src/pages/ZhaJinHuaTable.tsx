@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import {
   Bell,
+  ChevronDown,
   CircleSlash,
   Clipboard,
   Crown,
@@ -53,7 +54,6 @@ export function ZhaJinHuaTable({
   room,
   connected,
   notice,
-  compareReveal,
   onReady,
   onSee,
   onCall,
@@ -70,7 +70,10 @@ export function ZhaJinHuaTable({
   const opponents = room.players.filter((player) => player.seat !== room.selfSeat);
   const activeOpponents = opponents.filter((player) => player.connected && !player.folded && room.phase === "playing");
   const isMyTurn = room.phase === "playing" && room.currentTurn === room.selfSeat;
-  const selfCards = self?.hand ?? [];
+  const canCompare =
+    isMyTurn && activeOpponents.length > 0 && room.round > 1 && (Boolean(self?.seen) || activeOpponents.length <= 1);
+  const compareTargetSeats = new Set(activeOpponents.map((player) => player.seat));
+  const [selectingCompareTarget, setSelectingCompareTarget] = useState(false);
   const [showDealAnimation, setShowDealAnimation] = useState(false);
   const previousPhaseRef = useRef(room.phase);
 
@@ -86,6 +89,21 @@ export function ZhaJinHuaTable({
 
     return undefined;
   }, [room.phase, room.roomCode]);
+
+  useEffect(() => {
+    if (!canCompare) {
+      setSelectingCompareTarget(false);
+    }
+  }, [canCompare, room.currentTurn, room.phase, room.roomCode]);
+
+  function compareWithSeat(seat: number) {
+    if (!selectingCompareTarget || !compareTargetSeats.has(seat)) {
+      return;
+    }
+
+    setSelectingCompareTarget(false);
+    onCompare(seat);
+  }
 
   return (
     <>
@@ -147,6 +165,8 @@ export function ZhaJinHuaTable({
                   self={player.seat === room.selfSeat}
                   banker={room.bankerSeat === player.seat}
                   phase={room.phase}
+                  compareSelectable={selectingCompareTarget && compareTargetSeats.has(player.seat)}
+                  onCompareTarget={() => compareWithSeat(player.seat)}
                   style={getZjhSeatOrbitStyle(index, tableSeatCount)}
                 />
               ) : (
@@ -171,29 +191,21 @@ export function ZhaJinHuaTable({
               self={self}
               isMyTurn={isMyTurn}
               compareTargets={activeOpponents}
+              canCompare={canCompare}
+              selectingCompareTarget={selectingCompareTarget}
               onReady={onReady}
               onSee={onSee}
               onCall={onCall}
               onRaise={onRaise}
               onFold={onFold}
-              onCompare={onCompare}
+              onRequestCompare={() => setSelectingCompareTarget((current) => !current)}
+              onCancelCompare={() => setSelectingCompareTarget(false)}
             />
-          </section>
-
-          <section className="zjh-self-zone" aria-label="我的牌">
-            <div className="zjh-hand">
-              {room.phase === "lobby" || !self ? null : selfCards.length > 0 ? (
-                selfCards.map((card) => <ZjhCard key={card.id} card={card} />)
-              ) : (
-                Array.from({ length: self.cardCount || 3 }).map((_, index) => <ZjhCardBack key={index} />)
-              )}
-            </div>
           </section>
         </section>
       </main>
 
       {room.phase === "ended" && <ZjhResultDialog room={room} notice={notice} onReady={onReady} />}
-      {compareReveal && <ZjhCompareRevealPanel reveal={compareReveal} />}
     </>
   );
 }
@@ -203,24 +215,32 @@ function ZjhActionBar({
   self,
   isMyTurn,
   compareTargets,
+  canCompare,
+  selectingCompareTarget,
   onReady,
   onSee,
   onCall,
   onRaise,
   onFold,
-  onCompare
+  onRequestCompare,
+  onCancelCompare
 }: {
   room: ZjhRoomView;
   self?: ZjhPlayerView;
   isMyTurn: boolean;
   compareTargets: ZjhPlayerView[];
+  canCompare: boolean;
+  selectingCompareTarget: boolean;
   onReady: () => void;
   onSee: () => void;
   onCall: () => void;
   onRaise: (amount: number) => void;
   onFold: () => void;
-  onCompare: (targetSeat: number) => void;
+  onRequestCompare: () => void;
+  onCancelCompare: () => void;
 }) {
+  const [raiseMenuOpen, setRaiseMenuOpen] = useState(false);
+
   if (room.phase === "lobby") {
     return (
       <div className="zjh-actions zjh-ready-actions">
@@ -244,53 +264,99 @@ function ZjhActionBar({
   }
 
   if (!isMyTurn) {
-    return <div className="zjh-waiting">等待对手操作</div>;
+    return null;
   }
 
   const raiseLevels = self?.seen ? ZJH_SEEN_BETS : ZJH_BLIND_BETS;
-  const canCompare = room.round > 1 && (Boolean(self?.seen) || compareTargets.length <= 1);
+  const raiseOptions = raiseLevels.map((amount) => {
+    const tier = getZjhBetTier(amount, Boolean(self?.seen));
+    return {
+      amount,
+      disabled: tier === undefined || tier <= room.currentBet || tier > room.maxBet
+    };
+  });
+  const canRaise = raiseOptions.some((option) => !option.disabled);
 
   return (
-    <div className="zjh-actions">
-      <button type="button" onClick={onSee} disabled={self?.seen}>
+    <div className="zjh-actions zjh-play-actions">
+      <button
+        type="button"
+        onClick={() => {
+          onCancelCompare();
+          onSee();
+        }}
+        disabled={self?.seen}
+      >
         <Eye size={18} aria-hidden="true" />
         {self?.seen ? "已看牌" : "看牌"}
       </button>
-      <button className="primary-btn" type="button" onClick={onCall}>
+      <button
+        className="primary-btn"
+        type="button"
+        onClick={() => {
+          onCancelCompare();
+          onCall();
+        }}
+      >
         <Shield size={18} aria-hidden="true" />
         跟注
       </button>
-      <button type="button" onClick={onFold}>
+      <button
+        type="button"
+        onClick={() => {
+          onCancelCompare();
+          onFold();
+        }}
+      >
         <CircleSlash size={18} aria-hidden="true" />
         弃牌
       </button>
       <div className="zjh-raise-group" aria-label="加注">
-        {raiseLevels.map((amount) => {
-          const tier = getZjhBetTier(amount, Boolean(self?.seen));
-          return (
-            <button
-              type="button"
-              key={amount}
-              onClick={() => onRaise(amount)}
-              disabled={tier === undefined || tier <= room.currentBet || tier > room.maxBet}
-            >
-              下注 {amount}
-            </button>
-          );
-        })}
+        <button
+          type="button"
+          onClick={() => {
+            onCancelCompare();
+            setRaiseMenuOpen((current) => !current);
+          }}
+          disabled={!canRaise}
+          aria-expanded={raiseMenuOpen}
+          aria-haspopup="menu"
+        >
+          加注
+          <ChevronDown size={17} aria-hidden="true" />
+        </button>
+        {raiseMenuOpen && (
+          <div className="zjh-raise-menu" role="menu" aria-label="选择加注">
+            {raiseOptions.map(({ amount, disabled }) => (
+              <button
+                type="button"
+                key={amount}
+                onClick={() => {
+                  setRaiseMenuOpen(false);
+                  onRaise(amount);
+                }}
+                disabled={disabled}
+                role="menuitem"
+              >
+                加注 {amount}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-      {canCompare ? (
-        <div className="zjh-compare-group" aria-label="比牌">
-          {compareTargets.map((target) => (
-            <button type="button" key={target.seat} onClick={() => onCompare(target.seat)}>
-              <Swords size={17} aria-hidden="true" />
-              比 {target.nickname}
-            </button>
-          ))}
-        </div>
-      ) : (
-        <span className="zjh-action-hint">{room.round <= 1 ? "第一轮后可比牌" : "未看牌只剩两人时可比牌"}</span>
-      )}
+      <button
+        type="button"
+        className={selectingCompareTarget ? "is-active" : ""}
+        onClick={() => {
+          setRaiseMenuOpen(false);
+          onRequestCompare();
+        }}
+        disabled={!canCompare || compareTargets.length === 0}
+        aria-pressed={selectingCompareTarget}
+      >
+        <Swords size={17} aria-hidden="true" />
+        比牌
+      </button>
     </div>
   );
 }
@@ -331,6 +397,8 @@ function ZjhSeat({
   self,
   banker,
   phase,
+  compareSelectable,
+  onCompareTarget,
   style
 }: {
   player: ZjhPlayerView;
@@ -338,19 +406,40 @@ function ZjhSeat({
   self: boolean;
   banker: boolean;
   phase: ZjhRoomView["phase"];
+  compareSelectable: boolean;
+  onCompareTarget: () => void;
   style: ZjhOrbitStyle;
 }) {
   const showReady = phase === "lobby";
   const showSeen = phase !== "lobby";
-            const scoreSide = Number.parseFloat(style["--seat-left"]) > 0 ? "left" : "right";
+  const seatLeft = Number.parseFloat(style["--seat-left"]);
+  const scoreSide = seatLeft > 0 ? "left" : "right";
+  const cardSide = self ? "self" : seatLeft < -4 ? "left-table" : seatLeft > 4 ? "right-table" : "center-table";
   const seenLabel = player.folded ? "已弃牌" : player.seen ? "已看牌" : "未看牌";
+  const visibleCards = player.hand ?? [];
+  const cardBackCount = Math.min(player.cardCount || 3, 3);
 
   return (
     <article
-      className={`zjh-seat ${active ? "active" : ""} ${player.folded ? "folded" : ""} ${self ? "self" : ""}`}
+      className={`zjh-seat ${active ? "active" : ""} ${player.folded ? "folded" : ""} ${self ? "self" : ""} ${
+        compareSelectable ? "compare-target" : ""
+      }`}
       style={style}
     >
-      <div className="zjh-avatar-frame">
+      {showSeen && (
+        <div className={`zjh-seat-cards ${cardSide}`} aria-label={`${self ? "我的" : player.nickname}牌`}>
+          {visibleCards.length > 0
+            ? visibleCards.map((card) => <ZjhCard key={card.id} card={card} />)
+            : Array.from({ length: cardBackCount }).map((_, index) => <ZjhCardBack key={index} />)}
+        </div>
+      )}
+      <button
+        className={`zjh-avatar-frame ${compareSelectable ? "compare-selectable" : ""}`}
+        type="button"
+        disabled={!compareSelectable}
+        onClick={onCompareTarget}
+        aria-label={compareSelectable ? `与${player.nickname}比牌` : `${player.nickname}头像`}
+      >
         <img src={getZjhAvatarSrc(player.seat)} alt={`${player.nickname}头像`} draggable={false} />
         <span className="zjh-avatar-name">{self ? "你" : player.nickname}</span>
         {banker && (
@@ -359,7 +448,7 @@ function ZjhSeat({
             先手
           </span>
         )}
-      </div>
+      </button>
       <div className={`zjh-score-chip ${scoreSide}`} aria-label={`积分 ${player.score}`}>
         <img src={ZJH_CHIP_SRC} alt="" draggable={false} />
         <span>{player.score}</span>
@@ -513,23 +602,6 @@ function ZjhResultDialog({ room, notice, onReady }: { room: ZjhRoomView; notice:
         </button>
       </section>
     </div>
-  );
-}
-
-function ZjhCompareRevealPanel({ reveal }: { reveal: ZjhCompareReveal }) {
-  return (
-    <section className="zjh-compare-reveal" aria-live="polite" aria-label="比牌亮牌">
-      <div>
-        <span>比牌查看</span>
-        <strong>{reveal.targetNickname}</strong>
-        <small>{reveal.handLabel} · 稍后自动隐藏</small>
-      </div>
-      <div className="zjh-compare-reveal-cards">
-        {reveal.cards.map((card) => (
-          <ZjhCard key={card.id} card={card} />
-        ))}
-      </div>
-    </section>
   );
 }
 
