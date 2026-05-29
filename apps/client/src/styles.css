@@ -699,6 +699,102 @@ button.playing-card.selectable:hover:not(:disabled) {
   gap: 12px;
 }
 
+.zjh-settings-dialog {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 18px;
+  border: 1px solid rgba(255, 217, 122, 0.34);
+  border-radius: 10px;
+  padding: 20px;
+  color: #172321;
+  background: rgba(255, 253, 246, 0.96);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.32);
+}
+
+.zjh-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.zjh-settings-header h2 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.15;
+}
+
+.zjh-settings-close {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #2b3b38;
+  background: rgba(23, 35, 33, 0.06);
+}
+
+.zjh-setting-row {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-top: 1px solid rgba(23, 35, 33, 0.1);
+  padding-top: 14px;
+}
+
+.zjh-setting-row>div {
+  display: grid;
+  gap: 4px;
+}
+
+.zjh-setting-row strong,
+.zjh-volume-control span {
+  color: #172321;
+  font-weight: 1000;
+}
+
+.zjh-setting-row span {
+  color: #667872;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.zjh-toggle-button {
+  min-width: 76px;
+  min-height: 40px;
+  border-color: rgba(23, 35, 33, 0.14);
+  color: #667872;
+  background: rgba(23, 35, 33, 0.06);
+}
+
+.zjh-toggle-button.is-start {
+  border-color: rgba(15, 111, 77, 0.2);
+  color: #fff;
+  background: #0f6f4d;
+}
+
+.zjh-toggle-button.is-stop {
+  border-color: rgba(147, 0, 10, 0.18);
+  color: #fff;
+  background: #b3261e;
+}
+
+.zjh-volume-control {
+  display: grid;
+  gap: 10px;
+}
+
+.zjh-volume-control input {
+  width: 100%;
+  accent-color: #0f6f4d;
+}
+
+.zjh-volume-control input:disabled {
+  opacity: 0.45;
+}
+
 .danger-btn {
   border-color: rgba(147, 0, 10, 0.12);
   background: #ffdad6;

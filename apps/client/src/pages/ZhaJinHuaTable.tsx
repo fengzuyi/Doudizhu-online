@@ -15,7 +15,8 @@ import {
   Sparkles,
   Swords,
   Volume2,
-  VolumeX
+  VolumeX,
+  X
 } from "lucide-react";
 import { getZjhBetTier, ZJH_BLIND_BETS, ZJH_SEEN_BETS } from "@doudizhu/shared";
 import type { Card, ZjhCompareReveal, ZjhPlayerView, ZjhRoomView } from "@doudizhu/shared";
@@ -85,6 +86,8 @@ export function ZhaJinHuaTable({
   const [selectingCompareTarget, setSelectingCompareTarget] = useState(false);
   const [showDealAnimation, setShowDealAnimation] = useState(false);
   const [musicEnabled, setMusicEnabled] = useState(true);
+  const [musicVolume, setMusicVolume] = useState(0.35);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const previousPhaseRef = useRef(room.phase);
 
@@ -113,7 +116,7 @@ export function ZhaJinHuaTable({
       return undefined;
     }
 
-    audio.volume = 0.35;
+    audio.volume = musicVolume;
     audio.loop = true;
 
     if (!musicEnabled) {
@@ -133,7 +136,7 @@ export function ZhaJinHuaTable({
       window.removeEventListener("pointerdown", playMusic);
       window.removeEventListener("keydown", playMusic);
     };
-  }, [musicEnabled]);
+  }, [musicEnabled, musicVolume]);
 
   useEffect(() => {
     return () => {
@@ -186,7 +189,7 @@ export function ZhaJinHuaTable({
           <button className="zen-icon-button" type="button" onClick={() => onInfo("通知中心将在正式版开放。")} aria-label="通知">
             <Bell size={18} aria-hidden="true" />
           </button>
-          <button className="zen-icon-button" type="button" onClick={() => onInfo("设置将在正式版开放。")} aria-label="设置">
+          <button className="zen-icon-button" type="button" onClick={() => setSettingsOpen(true)} aria-label="设置">
             <Settings size={18} aria-hidden="true" />
           </button>
           <button className="zen-icon-button" type="button" onClick={() => onInfo("帮助中心将在正式版开放。")} aria-label="帮助">
@@ -271,8 +274,75 @@ export function ZhaJinHuaTable({
         </section>
       </main>
 
+      {settingsOpen && (
+        <ZjhSettingsDialog
+          musicEnabled={musicEnabled}
+          musicVolume={musicVolume}
+          onMusicEnabledChange={setMusicEnabled}
+          onMusicVolumeChange={setMusicVolume}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
+
       {room.phase === "ended" && <ZjhResultDialog room={room} notice={notice} onReady={onReady} />}
     </>
+  );
+}
+
+function ZjhSettingsDialog({
+  musicEnabled,
+  musicVolume,
+  onMusicEnabledChange,
+  onMusicVolumeChange,
+  onClose
+}: {
+  musicEnabled: boolean;
+  musicVolume: number;
+  onMusicEnabledChange: (enabled: boolean) => void;
+  onMusicVolumeChange: (volume: number) => void;
+  onClose: () => void;
+}) {
+  const volumePercent = Math.round(musicVolume * 100);
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="zjh-settings-title">
+      <section className="zjh-settings-dialog">
+        <div className="zjh-settings-header">
+          <h2 id="zjh-settings-title">设置</h2>
+          <button className="zjh-settings-close" type="button" onClick={onClose} aria-label="关闭设置">
+            <X size={20} aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="zjh-setting-row">
+          <div>
+            <strong>背景音乐</strong>
+            <span>{musicEnabled ? "已开启" : "已关闭"}</span>
+          </div>
+          <button
+            className={`zjh-toggle-button ${musicEnabled ? "is-stop" : "is-start"}`}
+            type="button"
+            onClick={() => onMusicEnabledChange(!musicEnabled)}
+            aria-pressed={musicEnabled}
+          >
+            {musicEnabled ? "关闭" : "开启"}
+          </button>
+        </div>
+
+        <label className="zjh-volume-control">
+          <span>音量 {volumePercent}%</span>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            value={volumePercent}
+            disabled={!musicEnabled}
+            onChange={(event) => onMusicVolumeChange(Number(event.target.value) / 100)}
+          />
+        </label>
+      </section>
+    </div>
   );
 }
 
