@@ -26,6 +26,7 @@ const ZJH_POT_CHIP_SRCS = [
   "/assets/chips/chips_stacked_red.png",
   "/assets/chips/chips_stacked_blue.png"
 ];
+const ZJH_TURN_RING_SRC = "/assets/flash/0baa0bf0-d89d-419e-be7a-1bca8cc44b53.362fd_1.png";
 const ZJH_HEAD_ASSETS = [
   "/assets/head/img_ntx10.png",
   "/assets/head/img_ntx12.png",
@@ -450,6 +451,7 @@ function ZjhSeat({
   const seenLabel = player.folded ? "已弃牌" : player.seen ? "已看牌" : "未看牌";
   const visibleCards = player.hand ?? [];
   const cardBackCount = Math.min(player.cardCount || 3, 3);
+  const showTurnRing = active && phase === "playing";
 
   return (
     <article
@@ -472,7 +474,8 @@ function ZjhSeat({
         onClick={onCompareTarget}
         aria-label={compareSelectable ? `与${player.nickname}比牌` : `${player.nickname}头像`}
       >
-        <img src={getZjhAvatarSrc(player.seat)} alt={`${player.nickname}头像`} draggable={false} />
+        <img className="zjh-avatar-img" src={getZjhAvatarSrc(player.seat)} alt={`${player.nickname}头像`} draggable={false} />
+        {showTurnRing && <img className="zjh-turn-ring" src={ZJH_TURN_RING_SRC} alt="" draggable={false} aria-hidden="true" />}
         <span className="zjh-avatar-name">{self ? "你" : player.nickname}</span>
         {banker && (
           <span className="zjh-seat-badge">
