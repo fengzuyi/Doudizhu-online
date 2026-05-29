@@ -4396,6 +4396,8 @@ button.playing-card.selectable:hover:not(:disabled) {
 }
 
 .zjh-seat-cards {
+  --zjh-seat-card-w: 50px;
+  --zjh-seat-card-h: 68px;
   position: absolute;
   left: 50%;
   bottom: calc(100% - 3px);
@@ -4424,19 +4426,27 @@ button.playing-card.selectable:hover:not(:disabled) {
 }
 
 .zjh-seat-cards.self {
+  --zjh-seat-card-w: 58px;
+  --zjh-seat-card-h: 78px;
   bottom: calc(100% + 12px);
 }
 
 .zjh-seat-cards .zjh-card,
 .zjh-seat-cards .zjh-card-back {
-  width: 50px;
+  width: var(--zjh-seat-card-w);
+  min-width: var(--zjh-seat-card-w);
+  height: var(--zjh-seat-card-h);
+  min-height: var(--zjh-seat-card-h);
+  flex: 0 0 var(--zjh-seat-card-w);
   margin-left: 0;
   filter: drop-shadow(0 7px 10px rgba(0, 0, 0, 0.3));
 }
 
-.zjh-seat-cards.self .zjh-card,
-.zjh-seat-cards.self .zjh-card-back {
-  width: 58px;
+.zjh-seat-cards .zjh-card img,
+.zjh-seat-cards .zjh-card-back img {
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
 }
 
 .zjh-seat.folded {
@@ -4945,6 +4955,8 @@ button.zjh-avatar-frame:disabled {
   }
 
   .zjh-seat-cards {
+    --zjh-seat-card-w: 40px;
+    --zjh-seat-card-h: 54px;
     min-height: 42px;
     bottom: calc(100% - 2px);
     gap: 3px;
@@ -4961,6 +4973,8 @@ button.zjh-avatar-frame:disabled {
   }
 
   .zjh-seat-cards.self {
+    --zjh-seat-card-w: 46px;
+    --zjh-seat-card-h: 62px;
     bottom: calc(100% + 8px);
   }
 
@@ -4977,13 +4991,12 @@ button.zjh-avatar-frame:disabled {
 
   .zjh-seat-cards .zjh-card,
   .zjh-seat-cards .zjh-card-back {
-    width: 40px;
+    width: var(--zjh-seat-card-w);
     margin-left: 0;
-  }
-
-  .zjh-seat-cards.self .zjh-card,
-  .zjh-seat-cards.self .zjh-card-back {
-    width: 46px;
+    height: var(--zjh-seat-card-h);
+    min-width: var(--zjh-seat-card-w);
+    min-height: var(--zjh-seat-card-h);
+    flex-basis: var(--zjh-seat-card-w);
   }
 }
 
