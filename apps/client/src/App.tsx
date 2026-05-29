@@ -121,10 +121,18 @@ async function requestJson<T>(path: string, options: RequestInit = {}): Promise<
     ...options,
     headers
   });
-  const body = (await response.json()) as { code?: string; message?: string };
+  const text = await response.text();
+  let body: { code?: string; message?: string } = {};
+  if (text) {
+    try {
+      body = JSON.parse(text) as { code?: string; message?: string };
+    } catch {
+      body = { code: "INVALID_RESPONSE", message: "服务器返回了无效响应，请确认后端服务正在运行。" };
+    }
+  }
 
   if (!response.ok) {
-    throw new ApiException(body.code ?? "REQUEST_FAILED", body.message ?? "请求失败。");
+    throw new ApiException(body.code ?? "REQUEST_FAILED", body.message ?? "请求失败，请稍后再试。");
   }
 
   return body as T;

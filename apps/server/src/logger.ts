@@ -52,6 +52,19 @@ export function createLogger(options: LoggerOptions = {}): AppLogger {
     mkdirSync(logDir, { recursive: true });
   }
 
+  function writeConsole(level: LogLevel, line: string) {
+    try {
+      if (level === "error") {
+        process.stderr.write(line);
+      } else {
+        process.stdout.write(line);
+      }
+    } catch (error) {
+      // Console pipes can be closed by parent tools/process managers during dev.
+      // Logging must never be able to crash the game server.
+    }
+  }
+
   function write(level: LogLevel, event: string, data?: Record<string, unknown>) {
     const entry = {
       at: new Date().toISOString(),
@@ -62,11 +75,7 @@ export function createLogger(options: LoggerOptions = {}): AppLogger {
     const line = `${JSON.stringify(entry)}\n`;
 
     if (!silent) {
-      if (level === "error") {
-        process.stderr.write(line);
-      } else {
-        process.stdout.write(line);
-      }
+      writeConsole(level, line);
     }
 
     if (logToFile) {

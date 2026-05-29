@@ -71,6 +71,15 @@ npm --workspace apps/server run db:generate
 npm --workspace apps/server run db:deploy
 ```
 
+现在也可以把本地数据库配置直接写到 `apps/server/.env`：
+
+```env
+DATABASE_URL="mysql://root:你的密码@127.0.0.1:3306/doudizhu"
+AUTH_SESSION_TTL_DAYS=30
+```
+
+之后执行 `npm run dev` 时，后端会自动创建数据库、生成 Prisma Client，并执行已存在的数据库迁移。
+
 本地 PowerShell 示例：
 
 ```powershell
@@ -127,6 +136,7 @@ npm run typecheck
 npm test
 npm run build
 
+npm run db:init
 npm --workspace apps/server run db:generate
 npm --workspace apps/server run db:migrate
 npm --workspace apps/server run db:deploy

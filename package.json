@@ -9,12 +9,13 @@
     "packages/shared"
   ],
   "scripts": {
-    "dev": "npm --workspace packages/shared run build && concurrently -n server,client -c green,cyan \"npm run dev:server\" \"npm run dev:client\"",
+    "dev": "npm --workspace packages/shared run build && npm run db:init && concurrently -n server,client -c green,cyan \"npm --workspace apps/server run dev:watch\" \"node scripts/waitForServer.mjs && npm run dev:client\"",
     "dev:client": "npm --workspace apps/client run dev",
     "dev:server": "npm --workspace apps/server run dev",
     "build": "npm --workspace packages/shared run build && npm --workspace apps/server run build && npm --workspace apps/client run build",
     "test": "npm --workspace packages/shared run test && npm --workspace apps/server run test",
-    "typecheck": "npm --workspace packages/shared run build && npm --workspace apps/server run typecheck && npm --workspace apps/client run typecheck"
+    "typecheck": "npm --workspace packages/shared run build && npm --workspace apps/server run typecheck && npm --workspace apps/client run typecheck",
+    "db:init": "npm --workspace apps/server run db:init"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

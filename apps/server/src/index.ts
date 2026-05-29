@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { createGameServer } from "./createGameServer.js";
 
 const port = Number(process.env.PORT ?? 3001);
