@@ -1,7 +1,6 @@
-import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { createPrismaAuthRepository } from "./authRepository.js";
+import type { AuthRepository, AuthUserRecord } from "./authRepository.js";
 
 export interface AuthProfile {
   account: string;
@@ -14,21 +13,8 @@ export interface AuthSuccess {
   profile: AuthProfile;
 }
 
-interface AccountRecord {
-  account: string;
-  nickname: string;
-  passwordHash: string;
-  salt: string;
-}
-
-interface AuthStoreFile {
-  accounts: AccountRecord[];
-}
-
-interface BackupOptions {
-  backupDir?: string;
-  keep?: number;
-  now?: Date;
+interface AuthManagerOptions {
+  sessionTtlDays?: number;
 }
 
 export class AuthException extends Error {
@@ -57,6 +43,10 @@ function hashPassword(password: string, salt: string) {
   return scryptSync(password, salt, 32).toString("hex");
 }
 
+function hashToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
 function assertCredentials(account: string, password: string) {
   if (!account) {
     throw new AuthException("ACCOUNT_REQUIRED", "请输入手机号 / 游戏账号。");
@@ -66,17 +56,22 @@ function assertCredentials(account: string, password: string) {
   }
 }
 
-export class AuthManager {
-  private readonly accounts = new Map<string, AccountRecord>();
-  private readonly sessions = new Map<string, string>();
-  private readonly activeTokensByAccount = new Map<string, string>();
-  private readonly replacedTokens = new Set<string>();
+function getSessionTtlDays(options: AuthManagerOptions) {
+  const configured = options.sessionTtlDays ?? Number(process.env.AUTH_SESSION_TTL_DAYS ?? 30);
+  return Number.isFinite(configured) && configured > 0 ? configured : 30;
+}
 
-  constructor(private readonly storePath: string | null = defaultAuthStorePath()) {
-    this.loadAccounts();
+export class AuthManager {
+  private readonly sessionTtlMs: number;
+
+  constructor(
+    private readonly repository: AuthRepository = createPrismaAuthRepository(),
+    options: AuthManagerOptions = {}
+  ) {
+    this.sessionTtlMs = getSessionTtlDays(options) * 24 * 60 * 60_000;
   }
 
-  register(payload: { account?: unknown; nickname?: unknown; password?: unknown }): AuthSuccess {
+  async register(payload: { account?: unknown; nickname?: unknown; password?: unknown }): Promise<AuthSuccess> {
     const account = normalizeAccount(payload.account);
     const nickname = normalizeNickname(payload.nickname);
     const password = normalizePassword(payload.password);
@@ -86,196 +81,102 @@ export class AuthManager {
     if (!nickname) {
       throw new AuthException("NICKNAME_REQUIRED", "请输入昵称。");
     }
-    if (this.accounts.has(account)) {
+    if (await this.repository.findUserByAccount(account)) {
       throw new AuthException("ACCOUNT_EXISTS", "该账号已注册。", 409);
     }
 
     const salt = randomBytes(16).toString("hex");
-    this.accounts.set(account, {
+    const user = await this.repository.createUser({
       account,
       nickname,
       salt,
       passwordHash: hashPassword(password, salt)
     });
-    this.saveAccounts();
 
-    return this.createSession(account);
+    return this.createSession(user);
   }
 
-  login(payload: { account?: unknown; password?: unknown }): AuthSuccess {
+  async login(payload: { account?: unknown; password?: unknown }): Promise<AuthSuccess> {
     const account = normalizeAccount(payload.account);
     const password = normalizePassword(payload.password);
     assertCredentials(account, password);
 
-    const record = this.accounts.get(account);
-    if (!record) {
+    const user = await this.repository.findUserByAccount(account);
+    if (!user) {
       throw new AuthException("ACCOUNT_NOT_FOUND", "账号不存在，请先注册。", 404);
     }
+    if (user.status === "BANNED") {
+      throw new AuthException("ACCOUNT_BANNED", "账号已被封禁，无法登录。", 403);
+    }
 
-    const expected = Buffer.from(record.passwordHash, "hex");
-    const actual = Buffer.from(hashPassword(password, record.salt), "hex");
+    const expected = Buffer.from(user.passwordHash, "hex");
+    const actual = Buffer.from(hashPassword(password, user.salt), "hex");
     if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
       throw new AuthException("INVALID_PASSWORD", "密码错误。", 401);
     }
 
-    return this.createSession(account);
+    await this.repository.updateLastLoginAt(user.id, new Date());
+    return this.createSession(user);
   }
 
-  me(token: string | undefined): AuthProfile {
-    const account = token ? this.sessions.get(token) : undefined;
-    if (!account) {
-      if (token && this.replacedTokens.has(token)) {
-        this.replacedTokens.delete(token);
-        throw new AuthException("SESSION_REPLACED", "账号已在其他设备登录，请重新登录。", 401);
-      }
+  async me(token: string | undefined): Promise<AuthProfile> {
+    if (!token) {
       throw new AuthException("UNAUTHORIZED", "登录已过期，请重新登录。", 401);
     }
 
-    if (this.activeTokensByAccount.get(account) !== token) {
-      this.sessions.delete(token ?? "");
+    const session = await this.repository.findSessionByTokenHash(hashToken(token));
+    if (!session) {
+      throw new AuthException("UNAUTHORIZED", "登录已过期，请重新登录。", 401);
+    }
+    if (session.replacedAt) {
       throw new AuthException("SESSION_REPLACED", "账号已在其他设备登录，请重新登录。", 401);
     }
-
-    const record = this.accounts.get(account);
-    if (!record) {
-      this.sessions.delete(token ?? "");
-      this.activeTokensByAccount.delete(account);
+    if (session.revokedAt || session.expiresAt <= new Date()) {
       throw new AuthException("UNAUTHORIZED", "登录已过期，请重新登录。", 401);
     }
+    if (session.user.status === "BANNED") {
+      throw new AuthException("ACCOUNT_BANNED", "账号已被封禁，无法登录。", 403);
+    }
 
-    return this.toProfile(record);
+    return this.toProfile(session.user);
   }
 
-  logout(token: string | undefined) {
+  async logout(token: string | undefined): Promise<void> {
     if (token) {
-      const account = this.sessions.get(token);
-      this.sessions.delete(token);
-      this.replacedTokens.delete(token);
-      if (account && this.activeTokensByAccount.get(account) === token) {
-        this.activeTokensByAccount.delete(account);
-      }
+      await this.repository.revokeSessionByTokenHash(hashToken(token), new Date());
     }
   }
 
-  getAccountCount() {
-    return this.accounts.size;
+  async getAccountCount() {
+    return this.repository.countUsers();
   }
 
-  getStorePath() {
-    return this.storePath;
+  async close() {
+    await this.repository.close?.();
   }
 
-  backupAccounts(options: BackupOptions = {}) {
-    if (!this.storePath || !existsSync(this.storePath)) {
-      return undefined;
-    }
-
-    const backupDir = options.backupDir ?? process.env.AUTH_BACKUP_DIR ?? join(dirname(this.storePath), "backups");
-    const keep = options.keep ?? Number(process.env.AUTH_BACKUP_KEEP ?? 20);
-    const now = options.now ?? new Date();
-    mkdirSync(backupDir, { recursive: true });
-
-    const stamp = now.toISOString().replace(/[:.]/g, "-");
-    const sourceName = basename(this.storePath);
-    const backupPath = join(backupDir, `${sourceName}.${stamp}.bak`);
-    copyFileSync(this.storePath, backupPath);
-    this.pruneBackups(backupDir, sourceName, Number.isFinite(keep) && keep > 0 ? keep : 20);
-
-    return {
-      path: backupPath,
-      accountCount: this.accounts.size
-    };
-  }
-
-  private createSession(account: string): AuthSuccess {
-    const record = this.accounts.get(account);
-    if (!record) {
-      throw new AuthException("ACCOUNT_NOT_FOUND", "账号不存在，请先注册。", 404);
-    }
-
-    this.revokeAccountSessions(account);
+  private async createSession(user: AuthUserRecord): Promise<AuthSuccess> {
+    const now = new Date();
     const token = randomBytes(32).toString("hex");
-    this.sessions.set(token, account);
-    this.activeTokensByAccount.set(account, token);
+
+    await this.repository.revokeActiveSessionsForUser(user.id, now);
+    await this.repository.createSession({
+      userId: user.id,
+      tokenHash: hashToken(token),
+      expiresAt: new Date(now.getTime() + this.sessionTtlMs)
+    });
+
     return {
       token,
-      profile: this.toProfile(record)
+      profile: this.toProfile(user)
     };
   }
 
-  private revokeAccountSessions(account: string) {
-    for (const [token, sessionAccount] of this.sessions.entries()) {
-      if (sessionAccount === account) {
-        this.sessions.delete(token);
-        this.replacedTokens.add(token);
-      }
-    }
-    this.activeTokensByAccount.delete(account);
-  }
-
-  private toProfile(record: AccountRecord): AuthProfile {
+  private toProfile(user: AuthUserRecord): AuthProfile {
     return {
-      account: record.account,
-      nickname: record.nickname,
+      account: user.account,
+      nickname: user.nickname,
       mode: "account"
     };
   }
-
-  private loadAccounts() {
-    if (!this.storePath || !existsSync(this.storePath)) {
-      return;
-    }
-
-    const parsed = JSON.parse(readFileSync(this.storePath, "utf8")) as Partial<AuthStoreFile>;
-    for (const record of parsed.accounts ?? []) {
-      if (isAccountRecord(record)) {
-        this.accounts.set(record.account, record);
-      }
-    }
-  }
-
-  private saveAccounts() {
-    if (!this.storePath) {
-      return;
-    }
-
-    mkdirSync(dirname(this.storePath), { recursive: true });
-    const payload: AuthStoreFile = {
-      accounts: [...this.accounts.values()]
-    };
-    writeFileSync(this.storePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
-  }
-
-  private pruneBackups(backupDir: string, sourceName: string, keep: number) {
-    const prefix = `${sourceName}.`;
-    const backups = readdirSync(backupDir)
-      .filter((name) => name.startsWith(prefix) && name.endsWith(".bak"))
-      .map((name) => {
-        const path = join(backupDir, name);
-        return { name, path, mtime: statSync(path).mtimeMs };
-      })
-      .sort((a, b) => b.name.localeCompare(a.name) || b.mtime - a.mtime);
-
-    for (const item of backups.slice(keep)) {
-      unlinkSync(item.path);
-    }
-  }
-}
-
-function defaultAuthStorePath() {
-  return process.env.AUTH_STORE_PATH ?? fileURLToPath(new URL("../data/auth-store.json", import.meta.url));
-}
-
-function isAccountRecord(record: unknown): record is AccountRecord {
-  if (!record || typeof record !== "object") {
-    return false;
-  }
-
-  const candidate = record as Partial<AccountRecord>;
-  return (
-    typeof candidate.account === "string" &&
-    typeof candidate.nickname === "string" &&
-    typeof candidate.passwordHash === "string" &&
-    typeof candidate.salt === "string"
-  );
 }

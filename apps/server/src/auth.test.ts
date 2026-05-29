@@ -1,11 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AddressInfo } from "node:net";
 import type { Server as HttpServer } from "node:http";
-import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { createGameServerWithOptions } from "./createGameServer.js";
-import type { AuthManager } from "./authManager.js";
+import { InMemoryAuthRepository } from "./authRepository.js";
+import type { AuthRepository } from "./authRepository.js";
 
 async function postJson(baseUrl: string, path: string, body: unknown, token?: string) {
   const response = await fetch(`${baseUrl}${path}`, {
@@ -37,16 +35,12 @@ async function getJson(baseUrl: string, path: string, token?: string) {
 describe("auth API", () => {
   let httpServer: HttpServer;
   let baseUrl = "";
-  let tempDir = "";
-  let authStorePath = "";
-  let authManager: AuthManager;
+  let authRepository: AuthRepository;
 
   beforeEach(async () => {
-    tempDir = mkdtempSync(join(tmpdir(), "doudizhu-auth-"));
-    authStorePath = join(tempDir, "auth-store.json");
-    const created = createGameServerWithOptions({ authStorePath });
+    authRepository = new InMemoryAuthRepository();
+    const created = createGameServerWithOptions({ authRepository });
     httpServer = created.httpServer;
-    authManager = created.authManager;
 
     await new Promise<void>((resolve) => {
       httpServer.listen(0, resolve);
@@ -58,21 +52,20 @@ describe("auth API", () => {
 
   afterEach(async () => {
     await new Promise<void>((resolve) => httpServer.close(() => resolve()));
-    rmSync(tempDir, { recursive: true, force: true });
   });
 
   it("registers an account and returns a token with profile", async () => {
     const result = await postJson(baseUrl, "/api/auth/register", {
       account: "player001",
-      nickname: "玩家一号",
-      password: "secret"
+      nickname: "Player One",
+      password: "secret123"
     });
 
     expect(result.status).toBe(200);
     expect(result.body.token).toEqual(expect.any(String));
     expect(result.body.profile).toEqual({
       account: "player001",
-      nickname: "玩家一号",
+      nickname: "Player One",
       mode: "account"
     });
   });
@@ -80,14 +73,14 @@ describe("auth API", () => {
   it("rejects duplicate registration", async () => {
     await postJson(baseUrl, "/api/auth/register", {
       account: "player001",
-      nickname: "玩家一号",
-      password: "secret"
+      nickname: "Player One",
+      password: "secret123"
     });
 
     const result = await postJson(baseUrl, "/api/auth/register", {
       account: "player001",
-      nickname: "玩家一号",
-      password: "secret"
+      nickname: "Player One",
+      password: "secret123"
     });
 
     expect(result.status).toBe(409);
@@ -97,48 +90,22 @@ describe("auth API", () => {
   it("logs in with a registered account", async () => {
     await postJson(baseUrl, "/api/auth/register", {
       account: "player001",
-      nickname: "玩家一号",
-      password: "secret"
+      nickname: "Player One",
+      password: "secret123"
     });
 
     const result = await postJson(baseUrl, "/api/auth/login", {
       account: "player001",
-      password: "secret"
+      password: "secret123"
     });
 
     expect(result.status).toBe(200);
     expect(result.body.token).toEqual(expect.any(String));
-    expect(result.body.profile).toMatchObject({ account: "player001", nickname: "玩家一号" });
-  });
-
-  it("keeps registered accounts after recreating the server with the same store file", async () => {
-    await postJson(baseUrl, "/api/auth/register", {
-      account: "player001",
-      nickname: "玩家一号",
-      password: "secret"
-    });
-
-    await new Promise<void>((resolve) => httpServer.close(() => resolve()));
-
-    const restarted = createGameServerWithOptions({ authStorePath });
-    httpServer = restarted.httpServer;
-    await new Promise<void>((resolve) => {
-      httpServer.listen(0, resolve);
-    });
-    const address = httpServer.address() as AddressInfo;
-    baseUrl = `http://localhost:${address.port}`;
-
-    const result = await postJson(baseUrl, "/api/auth/login", {
-      account: "player001",
-      password: "secret"
-    });
-
-    expect(result.status).toBe(200);
-    expect(result.body.profile).toMatchObject({ account: "player001", nickname: "玩家一号" });
+    expect(result.body.profile).toMatchObject({ account: "player001", nickname: "Player One" });
   });
 
   it("rejects empty credentials and wrong passwords", async () => {
-    const emptyAccount = await postJson(baseUrl, "/api/auth/login", { account: "", password: "secret" });
+    const emptyAccount = await postJson(baseUrl, "/api/auth/login", { account: "", password: "secret123" });
     expect(emptyAccount.status).toBe(400);
     expect(emptyAccount.body).toMatchObject({ code: "ACCOUNT_REQUIRED" });
 
@@ -148,8 +115,8 @@ describe("auth API", () => {
 
     await postJson(baseUrl, "/api/auth/register", {
       account: "player001",
-      nickname: "玩家一号",
-      password: "secret"
+      nickname: "Player One",
+      password: "secret123"
     });
 
     const wrongPassword = await postJson(baseUrl, "/api/auth/login", {
@@ -163,14 +130,14 @@ describe("auth API", () => {
   it("returns the current profile for a valid token and rejects invalid tokens", async () => {
     const registered = await postJson(baseUrl, "/api/auth/register", {
       account: "player001",
-      nickname: "玩家一号",
-      password: "secret"
+      nickname: "Player One",
+      password: "secret123"
     });
     const token = String(registered.body.token);
 
     const valid = await getJson(baseUrl, "/api/auth/me", token);
     expect(valid.status).toBe(200);
-    expect(valid.body.profile).toMatchObject({ account: "player001", nickname: "玩家一号" });
+    expect(valid.body.profile).toMatchObject({ account: "player001", nickname: "Player One" });
 
     const invalid = await getJson(baseUrl, "/api/auth/me", "bad-token");
     expect(invalid.status).toBe(401);
@@ -180,14 +147,14 @@ describe("auth API", () => {
   it("allows only the latest token for the same account", async () => {
     const registered = await postJson(baseUrl, "/api/auth/register", {
       account: "player001",
-      nickname: "玩家一号",
-      password: "secret"
+      nickname: "Player One",
+      password: "secret123"
     });
     const firstToken = String(registered.body.token);
 
     const loggedInAgain = await postJson(baseUrl, "/api/auth/login", {
       account: "player001",
-      password: "secret"
+      password: "secret123"
     });
     const secondToken = String(loggedInAgain.body.token);
 
@@ -199,14 +166,14 @@ describe("auth API", () => {
 
     const currentSession = await getJson(baseUrl, "/api/auth/me", secondToken);
     expect(currentSession.status).toBe(200);
-    expect(currentSession.body.profile).toMatchObject({ account: "player001", nickname: "玩家一号" });
+    expect(currentSession.body.profile).toMatchObject({ account: "player001", nickname: "Player One" });
   });
 
   it("invalidates a token after logout", async () => {
     const registered = await postJson(baseUrl, "/api/auth/register", {
       account: "player001",
-      nickname: "玩家一号",
-      password: "secret"
+      nickname: "Player One",
+      password: "secret123"
     });
     const token = String(registered.body.token);
 
@@ -219,25 +186,27 @@ describe("auth API", () => {
     expect(me.body).toMatchObject({ code: "UNAUTHORIZED" });
   });
 
-  it("creates and prunes auth store backups", async () => {
-    await postJson(baseUrl, "/api/auth/register", {
+  it("blocks banned users from logging in or keeping a session", async () => {
+    const registered = await postJson(baseUrl, "/api/auth/register", {
       account: "player001",
-      nickname: "玩家一号",
-      password: "secret"
+      nickname: "Player One",
+      password: "secret123"
     });
+    const token = String(registered.body.token);
+    const user = await authRepository.findUserByAccount("player001");
+    expect(user).not.toBeNull();
 
-    const first = authManager.backupAccounts({
-      keep: 1,
-      now: new Date("2026-05-27T00:00:00.000Z")
-    });
-    const second = authManager.backupAccounts({
-      keep: 1,
-      now: new Date("2026-05-27T00:01:00.000Z")
-    });
+    await authRepository.updateUserStatus(user!.id, "BANNED");
 
-    expect(first).toBeDefined();
-    expect(second).toBeDefined();
-    expect(existsSync(second!.path)).toBe(true);
-    expect(readdirSync(join(tempDir, "backups")).filter((name) => name.endsWith(".bak"))).toHaveLength(1);
+    const login = await postJson(baseUrl, "/api/auth/login", {
+      account: "player001",
+      password: "secret123"
+    });
+    expect(login.status).toBe(403);
+    expect(login.body).toMatchObject({ code: "ACCOUNT_BANNED" });
+
+    const me = await getJson(baseUrl, "/api/auth/me", token);
+    expect(me.status).toBe(403);
+    expect(me.body).toMatchObject({ code: "ACCOUNT_BANNED" });
   });
 });

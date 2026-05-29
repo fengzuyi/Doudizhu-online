@@ -535,6 +535,7 @@ export default function App() {
       return;
     }
 
+    socket.emit("auth:bind", { token: authToken });
     socket.emit("chat:join", { token: authToken });
   }, [authProfile, authToken, connected]);
 

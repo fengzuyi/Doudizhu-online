@@ -304,6 +304,7 @@ export interface DaBanZiRoomView {
 }
 
 export interface ClientToServerEvents {
+  "auth:bind": (payload: { token: string }) => void;
   "room:create": (payload: { nickname: string }) => void;
   "room:join": (payload: { roomCode: string; nickname: string }) => void;
   "room:leave": () => void;

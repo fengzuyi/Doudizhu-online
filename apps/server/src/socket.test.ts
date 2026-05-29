@@ -14,6 +14,7 @@ import type {
   ZjhRoomView
 } from "@doudizhu/shared";
 import { createGameServerWithOptions } from "./createGameServer.js";
+import { InMemoryAuthRepository } from "./authRepository.js";
 
 type ClientSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -23,36 +24,24 @@ function waitForState(socket: ClientSocket): Promise<RoomView> {
   });
 }
 
-function waitForChatState(socket: ClientSocket): Promise<{ messages: ChatMessage[]; onlineCount: number }> {
+function waitForStateWhere(socket: ClientSocket, predicate: (roomView: RoomView) => boolean): Promise<RoomView> {
   return new Promise((resolve) => {
-    socket.once("chat:state", resolve);
+    const handler = ({ roomView }: { roomView: RoomView }) => {
+      if (!predicate(roomView)) {
+        return;
+      }
+
+      socket.off("room:state", handler);
+      resolve(roomView);
+    };
+
+    socket.on("room:state", handler);
   });
 }
 
 function waitForZjhState(socket: ClientSocket): Promise<ZjhRoomView> {
   return new Promise((resolve) => {
     socket.once("zjh:room:state", ({ roomView }) => resolve(roomView));
-  });
-}
-
-function waitForDaBanZiState(socket: ClientSocket): Promise<DaBanZiRoomView> {
-  return new Promise((resolve) => {
-    socket.once("dbz:room:state", ({ roomView }) => resolve(roomView));
-  });
-}
-
-function waitForDaBanZiStateWhere(socket: ClientSocket, predicate: (roomView: DaBanZiRoomView) => boolean): Promise<DaBanZiRoomView> {
-  return new Promise((resolve) => {
-    const handler = ({ roomView }: { roomView: DaBanZiRoomView }) => {
-      if (!predicate(roomView)) {
-        return;
-      }
-
-      socket.off("dbz:room:state", handler);
-      resolve(roomView);
-    };
-
-    socket.on("dbz:room:state", handler);
   });
 }
 
@@ -71,6 +60,36 @@ function waitForZjhStateWhere(socket: ClientSocket, predicate: (roomView: ZjhRoo
   });
 }
 
+function waitForDaBanZiState(socket: ClientSocket): Promise<DaBanZiRoomView> {
+  return new Promise((resolve) => {
+    socket.once("dbz:room:state", ({ roomView }) => resolve(roomView));
+  });
+}
+
+function waitForDaBanZiStateWhere(
+  socket: ClientSocket,
+  predicate: (roomView: DaBanZiRoomView) => boolean
+): Promise<DaBanZiRoomView> {
+  return new Promise((resolve) => {
+    const handler = ({ roomView }: { roomView: DaBanZiRoomView }) => {
+      if (!predicate(roomView)) {
+        return;
+      }
+
+      socket.off("dbz:room:state", handler);
+      resolve(roomView);
+    };
+
+    socket.on("dbz:room:state", handler);
+  });
+}
+
+function waitForChatState(socket: ClientSocket): Promise<{ messages: ChatMessage[]; onlineCount: number }> {
+  return new Promise((resolve) => {
+    socket.once("chat:state", resolve);
+  });
+}
+
 function waitForChatMessage(socket: ClientSocket): Promise<ChatMessage> {
   return new Promise((resolve) => {
     socket.once("chat:message", ({ message }) => resolve(message));
@@ -83,24 +102,15 @@ function waitForChatError(socket: ClientSocket): Promise<GameError> {
   });
 }
 
-function waitForSessionReplaced(socket: ClientSocket): Promise<{ message: string }> {
+function waitForGameError(socket: ClientSocket): Promise<GameError> {
   return new Promise((resolve) => {
-    socket.once("auth:session_replaced", resolve);
+    socket.once("game:error", resolve);
   });
 }
 
-function waitForStateWhere(socket: ClientSocket, predicate: (roomView: RoomView) => boolean): Promise<RoomView> {
+function waitForSessionReplaced(socket: ClientSocket): Promise<{ message: string }> {
   return new Promise((resolve) => {
-    const handler = ({ roomView }: { roomView: RoomView }) => {
-      if (!predicate(roomView)) {
-        return;
-      }
-
-      socket.off("room:state", handler);
-      resolve(roomView);
-    };
-
-    socket.on("room:state", handler);
+    socket.once("auth:session_replaced", resolve);
   });
 }
 
@@ -144,6 +154,14 @@ async function loginAccount(baseUrl: string, account: string) {
   return (await response.json()) as { token: string; profile: { account: string; nickname: string } };
 }
 
+async function bindRegisteredAccount(baseUrl: string, socket: ClientSocket, account: string, nickname: string) {
+  const registered = await registerAccount(baseUrl, account, nickname);
+  const joined = waitForChatState(socket);
+  socket.emit("chat:join", { token: registered.token });
+  await joined;
+  return registered;
+}
+
 describe("socket game flow", () => {
   let httpServer: HttpServer;
   let ioServer: ReturnType<typeof createGameServerWithOptions>["io"];
@@ -151,7 +169,7 @@ describe("socket game flow", () => {
   let clients: ClientSocket[] = [];
 
   beforeEach(async () => {
-    const created = createGameServerWithOptions({ authStorePath: null });
+    const created = createGameServerWithOptions({ authRepository: new InMemoryAuthRepository() });
     httpServer = created.httpServer;
     ioServer = created.io;
 
@@ -172,20 +190,36 @@ describe("socket game flow", () => {
     await new Promise<void>((resolve) => httpServer.close(() => resolve()));
   });
 
+  it("requires socket auth before creating a room", async () => {
+    const client = await connectClient(baseUrl);
+    clients = [client];
+
+    const errorPromise = waitForGameError(client);
+    client.emit("room:create", { nickname: "Anonymous" });
+    const error = await errorPromise;
+
+    expect(error.code).toBe("AUTH_REQUIRED");
+  });
+
   it("lets three sockets create, join, ready, bid, and enter playing phase", async () => {
     const [a, b, c] = await Promise.all([connectClient(baseUrl), connectClient(baseUrl), connectClient(baseUrl)]);
     clients = [a, b, c];
+    await Promise.all([
+      bindRegisteredAccount(baseUrl, a, "ddz-a", "Player A"),
+      bindRegisteredAccount(baseUrl, b, "ddz-b", "Player B"),
+      bindRegisteredAccount(baseUrl, c, "ddz-c", "Player C")
+    ]);
 
     const createdState = waitForState(a);
-    a.emit("room:create", { nickname: "甲" });
+    a.emit("room:create", { nickname: "Ignored A" });
     const roomCode = (await createdState).roomCode;
 
     const joinedB = waitForState(b);
-    b.emit("room:join", { roomCode, nickname: "乙" });
+    b.emit("room:join", { roomCode, nickname: "Ignored B" });
     await joinedB;
 
     const joinedC = waitForState(c);
-    c.emit("room:join", { roomCode, nickname: "丙" });
+    c.emit("room:join", { roomCode, nickname: "Ignored C" });
     await joinedC;
 
     const biddingState = waitForStateWhere(a, (roomView) => roomView.phase === "bidding");
@@ -194,6 +228,7 @@ describe("socket game flow", () => {
     c.emit("game:ready");
     let state = await biddingState;
     expect(state.phase).toBe("bidding");
+    expect(state.players.map((player) => player.nickname).sort()).toEqual(["Player A", "Player B", "Player C"]);
 
     const socketsBySeat: Record<PlayerSeat, ClientSocket> = { 0: a, 1: b, 2: c };
     const firstBidSeat = state.currentTurn;
@@ -205,13 +240,13 @@ describe("socket game flow", () => {
     socketsBySeat[firstBidSeat].emit("bid:choose", { score: 1 });
     state = await nextState;
 
-    const highestBidSeat = state.currentTurn;
-    if (highestBidSeat === undefined) {
+    const secondBidSeat = state.currentTurn;
+    if (secondBidSeat === undefined) {
       throw new Error("Missing second bid seat");
     }
 
     nextState = waitForState(a);
-    socketsBySeat[highestBidSeat].emit("bid:choose", { score: 2 });
+    socketsBySeat[secondBidSeat].emit("bid:choose", { score: 2 });
     state = await nextState;
 
     const finalBidSeat = state.currentTurn;
@@ -223,22 +258,25 @@ describe("socket game flow", () => {
     socketsBySeat[finalBidSeat].emit("bid:choose", { score: 0 });
     state = await nextState;
 
-    const view = state;
-    expect(view.phase).toBe("playing");
-    expect(view.landlordSeat).toBe(highestBidSeat);
-    expect(view.players.find((player) => player.seat === highestBidSeat)?.cardCount).toBe(20);
+    expect(state.phase).toBe("playing");
+    expect(state.landlordSeat).toBe(secondBidSeat);
+    expect(state.players.find((player) => player.seat === secondBidSeat)?.cardCount).toBe(20);
   });
 
   it("lets sockets create, join, ready, and play a zha jin hua room", async () => {
     const [a, b] = await Promise.all([connectClient(baseUrl), connectClient(baseUrl)]);
     clients = [a, b];
+    await Promise.all([
+      bindRegisteredAccount(baseUrl, a, "zjh-a", "Player A"),
+      bindRegisteredAccount(baseUrl, b, "zjh-b", "Player B")
+    ]);
 
     const createdState = waitForZjhState(a);
-    a.emit("zjh:room:create", { nickname: "甲", maxPlayers: 4 });
+    a.emit("zjh:room:create", { nickname: "Ignored A", maxPlayers: 4 });
     const roomCode = (await createdState).roomCode;
 
     const joinedB = waitForZjhState(b);
-    b.emit("zjh:room:join", { roomCode, nickname: "乙" });
+    b.emit("zjh:room:join", { roomCode, nickname: "Ignored B" });
     await joinedB;
 
     const playingState = waitForZjhStateWhere(a, (roomView) => roomView.phase === "playing");
@@ -248,6 +286,7 @@ describe("socket game flow", () => {
 
     expect(state.phase).toBe("playing");
     expect(state.players).toHaveLength(2);
+    expect(state.players.map((player) => player.nickname).sort()).toEqual(["Player A", "Player B"]);
     expect(state.pot).toBe(2);
     expect(state.players.find((player) => player.seat === state.selfSeat)?.hand).toBeUndefined();
 
@@ -275,21 +314,27 @@ describe("socket game flow", () => {
       connectClient(baseUrl)
     ]);
     clients = [a, b, c, d];
+    await Promise.all([
+      bindRegisteredAccount(baseUrl, a, "dbz-a", "Player A"),
+      bindRegisteredAccount(baseUrl, b, "dbz-b", "Player B"),
+      bindRegisteredAccount(baseUrl, c, "dbz-c", "Player C"),
+      bindRegisteredAccount(baseUrl, d, "dbz-d", "Player D")
+    ]);
 
     const createdState = waitForDaBanZiState(a);
-    a.emit("dbz:room:create", { nickname: "甲" });
+    a.emit("dbz:room:create", { nickname: "Ignored A" });
     const roomCode = (await createdState).roomCode;
 
     const joinedB = waitForDaBanZiState(b);
-    b.emit("dbz:room:join", { roomCode, nickname: "乙" });
+    b.emit("dbz:room:join", { roomCode, nickname: "Ignored B" });
     await joinedB;
 
     const joinedC = waitForDaBanZiState(c);
-    c.emit("dbz:room:join", { roomCode, nickname: "丙" });
+    c.emit("dbz:room:join", { roomCode, nickname: "Ignored C" });
     await joinedC;
 
     const joinedD = waitForDaBanZiState(d);
-    d.emit("dbz:room:join", { roomCode, nickname: "丁" });
+    d.emit("dbz:room:join", { roomCode, nickname: "Ignored D" });
     await joinedD;
 
     const baoState = waitForDaBanZiStateWhere(a, (roomView) => roomView.phase === "bao" || roomView.phase === "ended");
@@ -301,6 +346,7 @@ describe("socket game flow", () => {
 
     expect(state.playerCount).toBe(4);
     expect(state.players).toHaveLength(4);
+    expect(state.players.map((player) => player.nickname).sort()).toEqual(["Player A", "Player B", "Player C", "Player D"]);
     expect(state.phase).toBe("bao");
     expect(state.baoCurrentSeat).toBeDefined();
     expect(state.players.find((player) => player.seat === state.selfSeat)?.hand).toHaveLength(13);
@@ -312,7 +358,7 @@ describe("socket game flow", () => {
     clients = [client];
 
     const errorPromise = waitForChatError(client);
-    client.emit("chat:send", { text: "有人吗" });
+    client.emit("chat:send", { text: "hello" });
     const error = await errorPromise;
 
     expect(error.code).toBe("CHAT_UNAUTHORIZED");
@@ -332,8 +378,8 @@ describe("socket game flow", () => {
   it("broadcasts global chat messages to joined sockets", async () => {
     const [a, b] = await Promise.all([connectClient(baseUrl), connectClient(baseUrl)]);
     clients = [a, b];
-    const accountA = await registerAccount(baseUrl, "alpha", "甲");
-    const accountB = await registerAccount(baseUrl, "beta", "乙");
+    const accountA = await registerAccount(baseUrl, "alpha", "Alpha");
+    const accountB = await registerAccount(baseUrl, "beta", "Beta");
 
     const joinedA = waitForChatState(a);
     a.emit("chat:join", { token: accountA.token });
@@ -344,18 +390,18 @@ describe("socket game flow", () => {
     expect((await joinedB).onlineCount).toBe(2);
 
     const receivedByB = waitForChatMessage(b);
-    a.emit("chat:send", { text: "开一局" });
+    a.emit("chat:send", { text: "start a round" });
     const message = await receivedByB;
 
-    expect(message.nickname).toBe("甲");
+    expect(message.nickname).toBe("Alpha");
     expect(message.account).toBe("alpha");
-    expect(message.text).toBe("开一局");
+    expect(message.text).toBe("start a round");
   });
 
   it("replaces an older socket session when the same account joins from another device", async () => {
     const [oldDevice, newDevice] = await Promise.all([connectClient(baseUrl), connectClient(baseUrl)]);
     clients = [oldDevice, newDevice];
-    const firstLogin = await registerAccount(baseUrl, "same-account", "同号玩家");
+    const firstLogin = await registerAccount(baseUrl, "same-account", "Same Player");
 
     const joinedOld = waitForChatState(oldDevice);
     oldDevice.emit("chat:join", { token: firstLogin.token });
@@ -370,14 +416,14 @@ describe("socket game flow", () => {
     expect((await joinedNew).onlineCount).toBe(1);
 
     const oldError = waitForChatError(oldDevice);
-    oldDevice.emit("chat:send", { text: "旧设备还能发吗" });
+    oldDevice.emit("chat:send", { text: "old device message" });
     expect((await oldError).code).toBe("CHAT_UNAUTHORIZED");
   });
 
   it("rejects empty and too-long chat messages", async () => {
     const client = await connectClient(baseUrl);
     clients = [client];
-    const account = await registerAccount(baseUrl, "gamma", "丙");
+    const account = await registerAccount(baseUrl, "gamma", "Gamma");
 
     const joined = waitForChatState(client);
     client.emit("chat:join", { token: account.token });
@@ -388,15 +434,15 @@ describe("socket game flow", () => {
     expect((await errorPromise).code).toBe("CHAT_EMPTY");
 
     errorPromise = waitForChatError(client);
-    client.emit("chat:send", { text: "太".repeat(121) });
+    client.emit("chat:send", { text: "x".repeat(121) });
     expect((await errorPromise).code).toBe("CHAT_TOO_LONG");
   });
 
   it("keeps the latest 50 chat messages in memory", async () => {
     const [a, b] = await Promise.all([connectClient(baseUrl), connectClient(baseUrl)]);
     clients = [a, b];
-    const accountA = await registerAccount(baseUrl, "delta", "丁");
-    const accountB = await registerAccount(baseUrl, "epsilon", "戊");
+    const accountA = await registerAccount(baseUrl, "delta", "Delta");
+    const accountB = await registerAccount(baseUrl, "epsilon", "Epsilon");
 
     const joinedA = waitForChatState(a);
     a.emit("chat:join", { token: accountA.token });
@@ -404,7 +450,7 @@ describe("socket game flow", () => {
 
     for (let index = 0; index < 55; index += 1) {
       const received = waitForChatMessage(a);
-      a.emit("chat:send", { text: `消息${index}` });
+      a.emit("chat:send", { text: `message-${index}` });
       await received;
     }
 
@@ -413,7 +459,7 @@ describe("socket game flow", () => {
     const state = await joinedB;
 
     expect(state.messages).toHaveLength(50);
-    expect(state.messages[0].text).toBe("消息5");
-    expect(state.messages[49].text).toBe("消息54");
+    expect(state.messages[0].text).toBe("message-5");
+    expect(state.messages[49].text).toBe("message-54");
   });
 });
