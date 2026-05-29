@@ -111,9 +111,6 @@ export function ZhaJinHuaTable({
 
       <main className="zjh-main">
         <section className="zjh-table" aria-label="炸金花牌桌">
-          <div className="zjh-casino-marquee" aria-hidden="true">
-            <span>炸金花好友房</span>
-          </div>
           <div className="zjh-dealer-zone" aria-hidden="true">
             <div className="zjh-dealer-glow" />
             <div className="zjh-dealer-figure">

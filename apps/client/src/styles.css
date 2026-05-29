@@ -4268,6 +4268,13 @@ button.playing-card.selectable:hover:not(:disabled) {
   background: rgba(12, 55, 86, 0.78);
 }
 
+.zjh-game-shell .zjh-header-actions .connection-pill,
+.zjh-game-shell .zjh-header-actions .zen-leave-button {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
 .zjh-main {
   min-height: calc(100dvh - 64px);
   padding: clamp(8px, 1.8vw, 18px);
