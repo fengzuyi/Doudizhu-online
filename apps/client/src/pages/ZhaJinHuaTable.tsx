@@ -19,6 +19,7 @@ import type { Card, ZjhCompareReveal, ZjhPlayerView, ZjhRoomView } from "@doudiz
 
 const ZJH_ASSET_BASE = "/assets/zhajinhua";
 const ZJH_CARD_BACK_SRC = `${ZJH_ASSET_BASE}/card_back/red_back_line.png`;
+const ZJH_CHIP_SRC = "/assets/chips/chips_stacked_green.png";
 const ZJH_HEAD_ASSETS = [
   "/assets/head/img_ntx10.png",
   "/assets/head/img_ntx12.png",
@@ -155,10 +156,9 @@ export function ZhaJinHuaTable({
           </div>
 
           <section className="zjh-center">
-            <div className="zjh-pot">
-              <span>底池</span>
+            <div className="zjh-pot" aria-label={`底池 ${room.pot}`}>
+              <img src={ZJH_CHIP_SRC} alt="" draggable={false} />
               <strong>{room.pot}</strong>
-              <small>基础底注 {room.baseAnte}</small>
             </div>
             {room.phase !== "lobby" && (
               <div className="zjh-message">
@@ -182,9 +182,7 @@ export function ZhaJinHuaTable({
 
           <section className="zjh-self-zone" aria-label="我的牌">
             <div className="zjh-hand">
-              {room.phase === "lobby" || !self ? (
-                <span className="zjh-hand-placeholder">准备后发牌</span>
-              ) : selfCards.length > 0 ? (
+              {room.phase === "lobby" || !self ? null : selfCards.length > 0 ? (
                 selfCards.map((card) => <ZjhCard key={card.id} card={card} />)
               ) : (
                 Array.from({ length: self.cardCount || 3 }).map((_, index) => <ZjhCardBack key={index} />)
@@ -343,6 +341,8 @@ function ZjhSeat({
   style: ZjhOrbitStyle;
 }) {
   const showReady = phase === "lobby";
+  const showSeen = phase !== "lobby";
+  const scoreSide = Number.parseFloat(style["--seat-left"]) < 0 ? "left" : "right";
   const seenLabel = player.folded ? "已弃牌" : player.seen ? "已看牌" : "未看牌";
 
   return (
@@ -360,10 +360,13 @@ function ZjhSeat({
           </span>
         )}
       </div>
+      <div className={`zjh-score-chip ${scoreSide}`} aria-label={`积分 ${player.score}`}>
+        <img src={ZJH_CHIP_SRC} alt="" draggable={false} />
+        <span>{player.score}</span>
+      </div>
       <div className="zjh-seat-meta">
-        <span>{seenLabel}</span>
-        <span>积分 {player.score}</span>
-        <span>已下注 {player.invested}</span>
+        {showSeen && <span>{seenLabel}</span>}
+        {showSeen && <span>已下注 {player.invested}</span>}
         {showReady && <span>{player.ready ? "已准备" : "未准备"}</span>}
       </div>
     </article>
