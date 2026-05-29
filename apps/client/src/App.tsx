@@ -1,4 +1,5 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { analyzeHand, validatePlay } from "@doudizhu/shared";
 import {
   Bell,
   ChevronDown,
@@ -550,6 +551,38 @@ export default function App() {
   const self = useMemo(() => room?.players.find((player) => player.seat === room.selfSeat), [room]);
   const selfHand = self?.hand ?? [];
   const selectedCards = selfHand.filter((card) => selectedIds.has(card.id));
+  const daBanZiSelf = useMemo(
+    () => daBanZiRoom?.players.find((player) => player.seat === daBanZiRoom.selfSeat),
+    [daBanZiRoom]
+  );
+  const daBanZiSelfHand = daBanZiSelf?.hand ?? [];
+  const daBanZiSelectedCards = daBanZiSelfHand.filter((card) => selectedIds.has(card.id));
+  const selectableHandIdKey = useMemo(() => {
+    const currentHand =
+      activeView === "da_ban_zi" ? daBanZiSelfHand : activeView === "doudizhu" ? selfHand : [];
+    return currentHand.map((card) => card.id).join("|");
+  }, [activeView, daBanZiSelfHand, selfHand]);
+  const previousPlayAnalysis = useMemo(() => {
+    if (!room?.lastPlay?.cards?.length) {
+      return undefined;
+    }
+
+    return analyzeHand(room.lastPlay.cards) ?? undefined;
+  }, [room?.lastPlay?.cards]);
+  const selectedPlayValidation = useMemo(() => {
+    if (selectedCards.length === 0) {
+      return null;
+    }
+
+    return validatePlay(selectedCards, previousPlayAnalysis);
+  }, [previousPlayAnalysis, selectedCards]);
+  const canPlaySelection = selectedPlayValidation?.ok ?? false;
+  const selectedPlayHint =
+    selectedCards.length === 0
+      ? ""
+      : selectedPlayValidation?.ok
+        ? `${selectedPlayValidation.analysis.label} · ${selectedCards.length} 张，可出`
+        : selectedPlayValidation?.reason ?? "这组牌暂时不能出。";
   const activeSeat = room?.phase === "bidding" ? room.bidCurrentSeat ?? room.currentTurn : room?.currentTurn;
   const opponents = useMemo(() => {
     if (!room || room.selfSeat === undefined) {
@@ -561,6 +594,19 @@ export default function App() {
       .filter((player): player is PlayerView => Boolean(player));
   }, [room]);
   const waitingOpponentSlots = Math.max(0, 2 - opponents.length);
+
+  useEffect(() => {
+    const validIds = new Set(selectableHandIdKey ? selectableHandIdKey.split("|") : []);
+
+    setSelectedIds((current) => {
+      if (current.size === 0) {
+        return current;
+      }
+
+      const next = new Set([...current].filter((id) => validIds.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [selectableHandIdKey]);
 
   function completeLogin(profile: AuthProfile, token: string, remember: boolean) {
     const cleanProfile = { ...profile, nickname: profile.nickname.trim() };
@@ -777,11 +823,11 @@ export default function App() {
   }
 
   function playSelected() {
-    socket.emit("play:cards", { cardIds: [...selectedIds] });
+    socket.emit("play:cards", { cardIds: selectedCards.map((card) => card.id) });
   }
 
   function playDaBanZiSelected() {
-    socket.emit("dbz:play:cards", { cardIds: [...selectedIds] });
+    socket.emit("dbz:play:cards", { cardIds: daBanZiSelectedCards.map((card) => card.id) });
   }
 
   function copyRoomCode() {
@@ -1059,6 +1105,8 @@ export default function App() {
               isMyTurn={isMyTurn}
               selectedCount={selectedCards.length}
               canPass={canPass}
+              canPlaySelection={canPlaySelection}
+              selectedHint={selectedPlayHint}
               onReady={() => socket.emit("game:ready")}
               onBid={chooseBid}
               onPlay={playSelected}
@@ -1169,6 +1217,8 @@ function ActionBar({
   isMyTurn,
   selectedCount,
   canPass,
+  canPlaySelection,
+  selectedHint,
   onReady,
   onBid,
   onPlay,
@@ -1180,6 +1230,8 @@ function ActionBar({
   isMyTurn: boolean;
   selectedCount: number;
   canPass: boolean;
+  canPlaySelection: boolean;
+  selectedHint: string;
   onReady: () => void;
   onBid: (score: BidScore) => void;
   onPlay: () => void;
@@ -1230,18 +1282,25 @@ function ActionBar({
     }
 
     return (
-      <div className="actions action-card" aria-label="出牌操作">
-        <button className="primary-btn" type="button" onClick={onPlay} disabled={selectedCount === 0}>
-          <Send size={18} aria-hidden="true" />
-          出牌
-        </button>
-        <button type="button" onClick={onPass} disabled={!canPass}>
-          <CircleSlash size={18} aria-hidden="true" />
-          不出
-        </button>
-        <button className="ghost-btn" type="button" onClick={onClear} disabled={selectedCount === 0}>
-          清空选择
-        </button>
+      <div className="play-action-stack action-card" aria-label="出牌操作">
+        {selectedHint && (
+          <div className={`play-selection-hint ${canPlaySelection ? "valid" : "invalid"}`} role="status">
+            {selectedHint}
+          </div>
+        )}
+        <div className="actions">
+          <button className="primary-btn" type="button" onClick={onPlay} disabled={!canPlaySelection}>
+            <Send size={18} aria-hidden="true" />
+            出牌
+          </button>
+          <button type="button" onClick={onPass} disabled={!canPass}>
+            <CircleSlash size={18} aria-hidden="true" />
+            不出
+          </button>
+          <button className="ghost-btn" type="button" onClick={onClear} disabled={selectedCount === 0}>
+            清空选择
+          </button>
+        </div>
       </div>
     );
   }
