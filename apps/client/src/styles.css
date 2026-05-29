@@ -4248,10 +4248,10 @@ button.playing-card.selectable:hover:not(:disabled) {
   z-index: 30;
   min-height: 64px;
   padding: 10px clamp(14px, 2.4vw, 28px);
-  border-bottom: 1px solid rgba(117, 207, 255, 0.18);
-  background: rgba(7, 17, 29, 0.9);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(16px);
+  border-bottom: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .zjh-brand {
