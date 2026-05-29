@@ -413,6 +413,25 @@ export class RoomManager {
     return roomCode ? this.rooms.get(roomCode) : undefined;
   }
 
+  reassignSocket(oldSocketId: string, newSocketId: string): InternalRoom | undefined {
+    const room = this.getRoomForSocket(oldSocketId);
+    if (!room) {
+      return undefined;
+    }
+    if (this.socketToRoom.has(newSocketId)) {
+      throw new GameException("ALREADY_IN_ROOM", "你已经在一个房间里。");
+    }
+
+    const player = this.requirePlayer(room, oldSocketId);
+    this.socketToRoom.delete(oldSocketId);
+    player.socketId = newSocketId;
+    player.connected = true;
+    this.socketToRoom.set(newSocketId, room.roomCode);
+    this.touch(room);
+
+    return room;
+  }
+
   getRoomForTest(roomCode: string): InternalRoom | undefined {
     return this.rooms.get(roomCode);
   }

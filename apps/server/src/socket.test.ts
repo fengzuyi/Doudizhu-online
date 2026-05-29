@@ -306,6 +306,69 @@ describe("socket game flow", () => {
     expect(seenState.players.find((player) => player.seat === currentTurn)?.hand).toHaveLength(3);
   });
 
+  it("keeps a zha jin hua seat when the same account reconnects after refresh", async () => {
+    const [a, b] = await Promise.all([connectClient(baseUrl), connectClient(baseUrl)]);
+    clients = [a, b];
+    const [accountA] = await Promise.all([
+      bindRegisteredAccount(baseUrl, a, "zjh-refresh-a", "Player A"),
+      bindRegisteredAccount(baseUrl, b, "zjh-refresh-b", "Player B")
+    ]);
+
+    const createdState = waitForZjhState(a);
+    a.emit("zjh:room:create", { nickname: "Ignored A", maxPlayers: 4 });
+    const roomCode = (await createdState).roomCode;
+
+    const joinedB = waitForZjhState(b);
+    b.emit("zjh:room:join", { roomCode, nickname: "Ignored B" });
+    await joinedB;
+
+    const playingState = waitForZjhStateWhere(a, (roomView) => roomView.phase === "playing");
+    a.emit("zjh:game:ready");
+    b.emit("zjh:game:ready");
+    const state = await playingState;
+    const originalSeat = state.selfSeat;
+
+    a.disconnect();
+    const refreshed = await connectClient(baseUrl);
+    clients.push(refreshed);
+
+    const restoredState = waitForZjhState(refreshed);
+    refreshed.emit("auth:bind", { token: accountA.token });
+    const restored = await restoredState;
+
+    expect(restored.roomCode).toBe(roomCode);
+    expect(restored.phase).toBe("playing");
+    expect(restored.selfSeat).toBe(originalSeat);
+    expect(restored.players.find((player) => player.seat === originalSeat)?.folded).toBe(false);
+    expect(restored.players.find((player) => player.seat === originalSeat)?.connected).toBe(true);
+    expect(restored.players.map((player) => player.nickname).sort()).toEqual(["Player A", "Player B"]);
+  });
+
+  it("returns the current zha jin hua room when an existing player joins the same room again", async () => {
+    const [a, b] = await Promise.all([connectClient(baseUrl), connectClient(baseUrl)]);
+    clients = [a, b];
+    await Promise.all([
+      bindRegisteredAccount(baseUrl, a, "zjh-rejoin-a", "Player A"),
+      bindRegisteredAccount(baseUrl, b, "zjh-rejoin-b", "Player B")
+    ]);
+
+    const createdState = waitForZjhState(a);
+    a.emit("zjh:room:create", { nickname: "Ignored A", maxPlayers: 4 });
+    const roomCode = (await createdState).roomCode;
+
+    const joinedB = waitForZjhState(b);
+    b.emit("zjh:room:join", { roomCode, nickname: "Ignored B" });
+    await joinedB;
+
+    const rejoinedState = waitForZjhState(a);
+    a.emit("zjh:room:join", { roomCode, nickname: "Ignored A" });
+    const rejoined = await rejoinedState;
+
+    expect(rejoined.roomCode).toBe(roomCode);
+    expect(rejoined.selfSeat).toBe(0);
+    expect(rejoined.players.map((player) => player.nickname).sort()).toEqual(["Player A", "Player B"]);
+  });
+
   it("lets four sockets create, join, ready, and enter da ban zi bao phase", async () => {
     const [a, b, c, d] = await Promise.all([
       connectClient(baseUrl),

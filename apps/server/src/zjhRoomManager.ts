@@ -363,6 +363,25 @@ export class ZjhRoomManager {
     return roomCode ? this.rooms.get(roomCode) : undefined;
   }
 
+  reassignSocket(oldSocketId: string, newSocketId: string): ZjhInternalRoom | undefined {
+    const room = this.getRoomForSocket(oldSocketId);
+    if (!room) {
+      return undefined;
+    }
+    if (this.socketToRoom.has(newSocketId)) {
+      throw new GameException("ALREADY_IN_ROOM", "你已经在一个炸金花房间里。");
+    }
+
+    const player = this.requirePlayer(room, oldSocketId);
+    this.socketToRoom.delete(oldSocketId);
+    player.socketId = newSocketId;
+    player.connected = true;
+    this.socketToRoom.set(newSocketId, room.roomCode);
+    this.touch(room);
+
+    return room;
+  }
+
   buildViews(room: ZjhInternalRoom): Array<{ socketId: string; roomView: ZjhRoomView }> {
     return room.players
       .filter((player): player is ZjhInternalPlayer => Boolean(player?.connected))

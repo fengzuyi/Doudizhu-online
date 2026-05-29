@@ -70,14 +70,6 @@ function clearStoredAuth() {
   localStorage.removeItem("doudizhu:nickname");
 }
 
-function readStoredRoomSession() {
-  try {
-    return sessionStorage.getItem(ROOM_SESSION_KEY);
-  } catch {
-    return null;
-  }
-}
-
 function rememberRoomSession(roomCode: string) {
   try {
     sessionStorage.setItem(ROOM_SESSION_KEY, roomCode);
@@ -292,15 +284,6 @@ export default function App() {
   }, [daBanZiRoom]);
 
   useEffect(() => {
-    const staleRoomCode = readStoredRoomSession();
-    if (!staleRoomCode) {
-      return;
-    }
-
-    resetRoomSession(`刷新后已离开房间 ${staleRoomCode}，请重新创建或加入。`);
-  }, [resetRoomSession]);
-
-  useEffect(() => {
     function onConnect() {
       setConnected(true);
     }
@@ -308,7 +291,7 @@ export default function App() {
     function onDisconnect() {
       setConnected(false);
       if (roomRef.current || zjhRoomRef.current || daBanZiRoomRef.current) {
-        resetRoomSession("连接已断开，当前房间已清理，请重新创建或加入。");
+        setToast("连接已断开，正在尝试重连房间。");
         return;
       }
 
