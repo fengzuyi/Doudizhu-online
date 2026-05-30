@@ -27,6 +27,18 @@ const CHAT_ROOM = "hall-chat";
 const MAX_CHAT_MESSAGES = 50;
 const MAX_CHAT_TEXT_LENGTH = 120;
 const DEFAULT_CLIENT_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
+const DEFAULT_ADMIN_ACCOUNT = "admin";
+const DEFAULT_ADMIN_PASSWORD = "admin123456";
+const ADMIN_SESSION_TTL_MS = 12 * 60 * 60_000;
+
+interface AdminAuditLog {
+  id: string;
+  at: number;
+  admin: string;
+  action: string;
+  target?: string;
+  reason?: string;
+}
 
 function getClientOrigins() {
   const raw = process.env.CLIENT_ORIGIN ?? process.env.CORS_ORIGIN;
@@ -76,6 +88,11 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
   const chatMessages: ChatMessage[] = [];
   const chatSessions = new Map<string, { account: string; nickname: string; token: string }>();
   const socketAuth = new Map<string, { account: string; nickname: string; token: string }>();
+  const adminAccount = (process.env.ADMIN_ACCOUNT ?? DEFAULT_ADMIN_ACCOUNT).trim().toLowerCase();
+  const adminPassword = process.env.ADMIN_PASSWORD ?? DEFAULT_ADMIN_PASSWORD;
+  const adminSessions = new Map<string, { account: string; expiresAt: number }>();
+  const mutedChatAccounts = new Map<string, { mutedAt: number; mutedBy: string; reason?: string }>();
+  const adminAuditLogs: AdminAuditLog[] = [];
   const cleanupOptions = {
     emptyRoomTtlMs: numberFromEnv("EMPTY_ROOM_TTL_MS", 60_000),
     endedRoomTtlMs: numberFromEnv("ENDED_ROOM_TTL_MS", 30 * 60_000),
@@ -110,6 +127,53 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
     const message = error instanceof Error ? error.message : "服务器发生未知错误。";
     logger.error("auth.server_error", { error });
     response.status(500).json({ code: "SERVER_ERROR", message });
+  }
+
+  function normalizeAdminLogin(value: unknown) {
+    return typeof value === "string" ? value.trim().toLowerCase() : "";
+  }
+
+  function requireAdmin(request: express.Request) {
+    const token = getBearerToken(request.headers.authorization);
+    const session = token ? adminSessions.get(token) : undefined;
+    if (!token || !session || session.expiresAt <= Date.now()) {
+      if (token) {
+        adminSessions.delete(token);
+      }
+      throw new AuthException("ADMIN_UNAUTHORIZED", "请先登录管理后台。", 401);
+    }
+
+    return session;
+  }
+
+  function pushAdminAudit(input: { admin: string; action: string; target?: string; reason?: string }) {
+    adminAuditLogs.push({
+      id: randomUUID(),
+      at: Date.now(),
+      ...input
+    });
+    if (adminAuditLogs.length > 200) {
+      adminAuditLogs.splice(0, adminAuditLogs.length - 200);
+    }
+  }
+
+  function removeAccountFromLiveSessions(account: string, message: string) {
+    for (const [socketId, session] of [...socketAuth.entries()]) {
+      if (session.account !== account) {
+        continue;
+      }
+
+      io.to(socketId).emit("auth:session_replaced", { message });
+      removeSocketFromGameRooms(socketId);
+      leaveChat(socketId);
+      socketAuth.delete(socketId);
+    }
+
+    for (const [socketId, session] of [...chatSessions.entries()]) {
+      if (session.account === account) {
+        leaveChat(socketId);
+      }
+    }
   }
 
   app.post("/api/auth/register", async (request, response) => {
@@ -147,6 +211,158 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       await authManager.logout(token);
       logger.info("auth.logout");
       response.json({ ok: true });
+    } catch (error) {
+      sendAuthError(response, error);
+    }
+  });
+
+  app.post("/api/admin/login", (request, response) => {
+    try {
+      const account = normalizeAdminLogin(request.body?.account);
+      const password = typeof request.body?.password === "string" ? request.body.password : "";
+      if (account !== adminAccount || password !== adminPassword) {
+        throw new AuthException("ADMIN_LOGIN_FAILED", "管理员账号或密码错误。", 401);
+      }
+
+      const token = randomUUID();
+      adminSessions.set(token, { account, expiresAt: Date.now() + ADMIN_SESSION_TTL_MS });
+      pushAdminAudit({ admin: account, action: "admin.login" });
+      logger.info("admin.login", { account });
+      response.json({ token, profile: { account, role: "super_admin" } });
+    } catch (error) {
+      sendAuthError(response, error);
+    }
+  });
+
+  app.get("/api/admin/me", (request, response) => {
+    try {
+      const session = requireAdmin(request);
+      response.json({ profile: { account: session.account, role: "super_admin" } });
+    } catch (error) {
+      sendAuthError(response, error);
+    }
+  });
+
+  app.post("/api/admin/logout", (request, response) => {
+    try {
+      const token = getBearerToken(request.headers.authorization);
+      const session = token ? adminSessions.get(token) : undefined;
+      if (token) {
+        adminSessions.delete(token);
+      }
+      if (session) {
+        pushAdminAudit({ admin: session.account, action: "admin.logout" });
+      }
+      response.json({ ok: true });
+    } catch (error) {
+      sendAuthError(response, error);
+    }
+  });
+
+  app.get("/api/admin/users", async (request, response) => {
+    try {
+      requireAdmin(request);
+      const query = typeof request.query.q === "string" ? request.query.q : undefined;
+      const users = await authManager.listUsers(query);
+      response.json({
+        users: users.map((user) => ({
+          id: user.id,
+          account: user.account,
+          nickname: user.nickname,
+          status: user.status,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+          lastLoginAt: user.lastLoginAt,
+          activeSessionCount: user.activeSessionCount,
+          muted: mutedChatAccounts.has(user.account),
+          muteReason: mutedChatAccounts.get(user.account)?.reason
+        }))
+      });
+    } catch (error) {
+      sendAuthError(response, error);
+    }
+  });
+
+  app.post("/api/admin/users/:account/status", async (request, response) => {
+    try {
+      const session = requireAdmin(request);
+      const account = request.params.account;
+      const status = request.body?.status;
+      const reason = typeof request.body?.reason === "string" ? request.body.reason.trim() : undefined;
+      await authManager.setUserStatus(account, status);
+      if (status === "BANNED") {
+        removeAccountFromLiveSessions(account.toLowerCase(), reason || "账号已被管理员封禁。");
+      }
+      pushAdminAudit({ admin: session.account, action: status === "BANNED" ? "user.ban" : "user.unban", target: account, reason });
+      response.json({ ok: true });
+    } catch (error) {
+      sendAuthError(response, error);
+    }
+  });
+
+  app.post("/api/admin/users/:account/sessions/revoke", async (request, response) => {
+    try {
+      const session = requireAdmin(request);
+      const account = request.params.account.toLowerCase();
+      const reason = typeof request.body?.reason === "string" ? request.body.reason.trim() : undefined;
+      await authManager.revokeUserSessions(account);
+      removeAccountFromLiveSessions(account, reason || "管理员已强制该账号下线。");
+      pushAdminAudit({ admin: session.account, action: "user.revoke_sessions", target: account, reason });
+      response.json({ ok: true });
+    } catch (error) {
+      sendAuthError(response, error);
+    }
+  });
+
+  app.post("/api/admin/users/:account/mute", (request, response) => {
+    try {
+      const session = requireAdmin(request);
+      const account = request.params.account.toLowerCase();
+      const muted = Boolean(request.body?.muted);
+      const reason = typeof request.body?.reason === "string" ? request.body.reason.trim() : undefined;
+      if (muted) {
+        mutedChatAccounts.set(account, { mutedAt: Date.now(), mutedBy: session.account, reason });
+      } else {
+        mutedChatAccounts.delete(account);
+      }
+      pushAdminAudit({ admin: session.account, action: muted ? "chat.mute" : "chat.unmute", target: account, reason });
+      response.json({ ok: true });
+    } catch (error) {
+      sendAuthError(response, error);
+    }
+  });
+
+  app.get("/api/admin/chat/messages", (request, response) => {
+    try {
+      requireAdmin(request);
+      response.json({ messages: chatMessages });
+    } catch (error) {
+      sendAuthError(response, error);
+    }
+  });
+
+  app.delete("/api/admin/chat/messages/:id", (request, response) => {
+    try {
+      const session = requireAdmin(request);
+      const messageIndex = chatMessages.findIndex((message) => message.id === request.params.id);
+      if (messageIndex === -1) {
+        throw new AuthException("CHAT_MESSAGE_NOT_FOUND", "聊天记录不存在。", 404);
+      }
+
+      const [removed] = chatMessages.splice(messageIndex, 1);
+      const reason = typeof request.body?.reason === "string" ? request.body.reason.trim() : undefined;
+      pushAdminAudit({ admin: session.account, action: "chat.delete_message", target: removed.id, reason });
+      emitChatState();
+      response.json({ ok: true });
+    } catch (error) {
+      sendAuthError(response, error);
+    }
+  });
+
+  app.get("/api/admin/audit", (request, response) => {
+    try {
+      requireAdmin(request);
+      response.json({ logs: [...adminAuditLogs].reverse().slice(0, 100) });
     } catch (error) {
       sendAuthError(response, error);
     }
@@ -608,6 +824,12 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
         }
 
         emitChatError(socket.id, "CHAT_UNAUTHORIZED", "请重新登录后再发送聊天。");
+        return;
+      }
+
+      const mute = mutedChatAccounts.get(session.account);
+      if (mute) {
+        emitChatError(socket.id, "CHAT_MUTED", mute.reason ? `你已被禁言：${mute.reason}` : "你已被禁言。");
         return;
       }
 

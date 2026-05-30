@@ -33,6 +33,7 @@ import type {
 import { socket } from "./socket.js";
 import { GameHall } from "./pages/GameHall.js";
 import { LoginPage, type AuthProfile, type LoginPayload, type RegisterPayload } from "./pages/LoginPage.js";
+import { AdminPage } from "./pages/AdminPage.js";
 import { ZhaJinHuaTable } from "./pages/ZhaJinHuaTable.js";
 import { DaBanZiTable } from "./pages/DaBanZiTable.js";
 
@@ -172,6 +173,7 @@ function getPhaseLabel(room: RoomView | null): string {
 }
 
 export default function App() {
+  const isAdminRoute = window.location.pathname.startsWith("/admin");
   const [connected, setConnected] = useState(socket.connected);
   const [authProfile, setAuthProfile] = useState<AuthProfile | null>(() => readStoredAuth());
   const [authToken, setAuthToken] = useState(() => readStoredToken());
@@ -838,6 +840,10 @@ export default function App() {
 
     socket.emit("chat:send", { text });
     setChatDraft("");
+  }
+
+  if (isAdminRoute) {
+    return <AdminPage />;
   }
 
   if (authChecking) {

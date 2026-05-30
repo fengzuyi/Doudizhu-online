@@ -26,8 +26,13 @@ export interface AuthSessionRecord {
   user: AuthUserRecord;
 }
 
+export interface AuthAdminUserRecord extends AuthUserRecord {
+  activeSessionCount: number;
+}
+
 export interface AuthRepository {
   findUserByAccount(account: string): Promise<AuthUserRecord | null>;
+  listUsers(query?: string): Promise<AuthAdminUserRecord[]>;
   createUser(input: {
     account: string;
     nickname: string;
@@ -62,6 +67,38 @@ export class PrismaAuthRepository implements AuthRepository {
   async findUserByAccount(account: string): Promise<AuthUserRecord | null> {
     const user = await this.prisma.user.findUnique({ where: { account } });
     return user ? toUserRecord(user) : null;
+  }
+
+  async listUsers(query?: string): Promise<AuthAdminUserRecord[]> {
+    const keyword = query?.trim();
+    const now = new Date();
+    const users = await this.prisma.user.findMany({
+      where: keyword
+        ? {
+            OR: [{ account: { contains: keyword } }, { nickname: { contains: keyword } }]
+          }
+        : undefined,
+      orderBy: { createdAt: "desc" },
+      take: 200,
+      include: {
+        _count: {
+          select: {
+            sessions: {
+              where: {
+                revokedAt: null,
+                replacedAt: null,
+                expiresAt: { gt: now }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    return users.map((user) => ({
+      ...toUserRecord(user),
+      activeSessionCount: user._count.sessions
+    }));
   }
 
   async createUser(input: {
@@ -146,6 +183,28 @@ export class InMemoryAuthRepository implements AuthRepository {
   async findUserByAccount(account: string): Promise<AuthUserRecord | null> {
     const userId = this.userIdsByAccount.get(account);
     return userId ? this.usersById.get(userId) ?? null : null;
+  }
+
+  async listUsers(query?: string): Promise<AuthAdminUserRecord[]> {
+    const keyword = query?.trim().toLowerCase();
+    const now = new Date();
+    return [...this.usersById.values()]
+      .filter((user) => {
+        if (!keyword) {
+          return true;
+        }
+
+        return user.account.includes(keyword) || user.nickname.toLowerCase().includes(keyword);
+      })
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+      .slice(0, 200)
+      .map((user) => ({
+        ...user,
+        activeSessionCount: [...this.sessionsByTokenHash.values()].filter(
+          (session) =>
+            session.userId === user.id && !session.revokedAt && !session.replacedAt && session.expiresAt > now
+        ).length
+      }));
   }
 
   async createUser(input: {

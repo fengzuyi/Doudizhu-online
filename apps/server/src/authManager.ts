@@ -151,6 +151,45 @@ export class AuthManager {
     return this.repository.countUsers();
   }
 
+  async listUsers(query?: string) {
+    return this.repository.listUsers(query);
+  }
+
+  async setUserStatus(account: unknown, status: unknown) {
+    const normalizedAccount = normalizeAccount(account);
+    const normalizedStatus = status === "BANNED" ? "BANNED" : status === "ACTIVE" ? "ACTIVE" : undefined;
+    if (!normalizedAccount) {
+      throw new AuthException("ACCOUNT_REQUIRED", "请输入账号。");
+    }
+    if (!normalizedStatus) {
+      throw new AuthException("INVALID_STATUS", "请输入有效的账号状态。");
+    }
+
+    const user = await this.repository.findUserByAccount(normalizedAccount);
+    if (!user) {
+      throw new AuthException("ACCOUNT_NOT_FOUND", "账号不存在。", 404);
+    }
+
+    await this.repository.updateUserStatus(user.id, normalizedStatus);
+    if (normalizedStatus === "BANNED") {
+      await this.repository.revokeActiveSessionsForUser(user.id, new Date());
+    }
+  }
+
+  async revokeUserSessions(account: unknown) {
+    const normalizedAccount = normalizeAccount(account);
+    if (!normalizedAccount) {
+      throw new AuthException("ACCOUNT_REQUIRED", "请输入账号。");
+    }
+
+    const user = await this.repository.findUserByAccount(normalizedAccount);
+    if (!user) {
+      throw new AuthException("ACCOUNT_NOT_FOUND", "账号不存在。", 404);
+    }
+
+    await this.repository.revokeActiveSessionsForUser(user.id, new Date());
+  }
+
   async close() {
     await this.repository.close?.();
   }
