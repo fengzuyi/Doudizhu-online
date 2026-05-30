@@ -44,45 +44,28 @@ const ZJH_SOUND_EFFECTS = {
   settlement: zjhEffectSrc("settlement_bell.mp3"),
   seeVoices: [
     zjhEffectSrc("see_cards_female.mp3"),
-    zjhEffectSrc("see_cards_male.mp3"),
     zjhEffectSrc("see_cant_wait_female.mp3"),
-    zjhEffectSrc("see_cant_wait_male.mp3"),
-    zjhEffectSrc("see_market_female.mp3"),
-    zjhEffectSrc("see_market_female_alt.mp3"),
-    zjhEffectSrc("see_interesting_cards.mp3")
+    zjhEffectSrc("see_market_female.mp3")
   ],
   callVoices: [
-    zjhEffectSrc("call_female.mp3"),
-    zjhEffectSrc("call_male.mp3"),
     zjhEffectSrc("call_i_call_female.mp3"),
-    zjhEffectSrc("call_i_call_male.mp3"),
     zjhEffectSrc("call_not_scared_female.mp3"),
-    zjhEffectSrc("call_not_scared_male.mp3"),
-    zjhEffectSrc("call_endure_female.mp3"),
-    zjhEffectSrc("call_endure_female_alt.mp3")
+    zjhEffectSrc("call_endure_female.mp3")
   ],
   raiseVoices: [
     zjhEffectSrc("raise_female.mp3"),
-    zjhEffectSrc("raise_male.mp3"),
     zjhEffectSrc("raise_pressure_female.mp3"),
-    zjhEffectSrc("raise_pressure_male.mp3"),
     zjhEffectSrc("raise_last_try_female.mp3"),
-    zjhEffectSrc("raise_last_try_male.mp3"),
     zjhEffectSrc("raise_exciting_female.mp3"),
-    zjhEffectSrc("raise_exciting_male.mp3"),
     zjhEffectSrc("raise_interesting_female.mp3")
   ],
   foldVoices: [
     zjhEffectSrc("fold_no_call_female.mp3"),
-    zjhEffectSrc("fold_no_call_male.mp3"),
     zjhEffectSrc("fold_no_play_anymore_female.mp3"),
-    zjhEffectSrc("fold_no_play_anymore_male.mp3"),
     zjhEffectSrc("fold_safety_first_female.mp3"),
-    zjhEffectSrc("fold_safety_first_male.mp3"),
-    zjhEffectSrc("fold_give_up_female.mp3"),
-    zjhEffectSrc("fold_give_up_male.mp3")
+    zjhEffectSrc("fold_give_up_female.mp3")
   ],
-  compareVoices: [zjhEffectSrc("compare_female.mp3"), zjhEffectSrc("compare_male.mp3")]
+  compareVoices: [zjhEffectSrc("compare_female.mp3")]
 } as const;
 const ZJH_BRAND_SRC = "/assets/pictures/zhajinghua.png";
 const ZJH_BRAND_ROSE_SRC = "/assets/pictures/meigui.png";
@@ -161,50 +144,59 @@ export function ZhaJinHuaTable({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
   const previousPhaseRef = useRef(room.phase);
   const soundRoomCodeRef = useRef(room.roomCode);
   const lastSoundTurnLogKeyRef = useRef(getZjhLogKey(room.turnLog.at(-1)) ?? ZJH_EMPTY_LOG_KEY);
 
-  function playZjhSound(src?: string) {
+  function playZjhSound(src?: string, options?: { channel?: "effect" | "voice" }) {
     if (!soundEnabled || !src) {
       return;
     }
 
+    if (options?.channel === "voice") {
+      voiceAudioRef.current?.pause();
+      voiceAudioRef.current = null;
+    }
+
     const audio = new Audio(src);
     audio.volume = soundVolume;
+    if (options?.channel === "voice") {
+      voiceAudioRef.current = audio;
+    }
     audio.play().catch(() => undefined);
   }
 
-  function playRandomZjhSound(pool: readonly string[]) {
-    playZjhSound(pickRandom(pool));
+  function playRandomZjhVoice(pool: readonly string[]) {
+    playZjhSound(pickRandom(pool), { channel: "voice" });
   }
 
   function playZjhActionSounds(action: ZjhRoomView["turnLog"][number]) {
     if (action.action === "see") {
-      playRandomZjhSound(ZJH_SOUND_EFFECTS.seeVoices);
+      playRandomZjhVoice(ZJH_SOUND_EFFECTS.seeVoices);
       return;
     }
 
     if (action.action === "call") {
       playZjhSound(ZJH_SOUND_EFFECTS.callChips);
-      playRandomZjhSound(ZJH_SOUND_EFFECTS.callVoices);
+      playRandomZjhVoice(ZJH_SOUND_EFFECTS.callVoices);
       return;
     }
 
     if (action.action === "raise") {
       playZjhSound(ZJH_SOUND_EFFECTS.raiseChips);
-      playRandomZjhSound(ZJH_SOUND_EFFECTS.raiseVoices);
+      playRandomZjhVoice(ZJH_SOUND_EFFECTS.raiseVoices);
       return;
     }
 
     if (action.action === "fold") {
-      playRandomZjhSound(ZJH_SOUND_EFFECTS.foldVoices);
+      playRandomZjhVoice(ZJH_SOUND_EFFECTS.foldVoices);
       return;
     }
 
     if (action.action === "compare") {
       playZjhSound(ZJH_SOUND_EFFECTS.compareCue);
-      playRandomZjhSound(ZJH_SOUND_EFFECTS.compareVoices);
+      playRandomZjhVoice(ZJH_SOUND_EFFECTS.compareVoices);
     }
   }
 
@@ -247,7 +239,9 @@ export function ZhaJinHuaTable({
     }
 
     if (previousKey === ZJH_EMPTY_LOG_KEY) {
-      room.turnLog.forEach(playZjhActionSounds);
+      if (latestAction) {
+        playZjhActionSounds(latestAction);
+      }
       lastSoundTurnLogKeyRef.current = latestKey;
       return;
     }
@@ -259,9 +253,19 @@ export function ZhaJinHuaTable({
     }
 
     const newActions = room.turnLog.slice(previousIndex + 1);
-    newActions.forEach(playZjhActionSounds);
+    const latestNewAction = newActions.at(-1);
+    if (latestNewAction) {
+      playZjhActionSounds(latestNewAction);
+    }
     lastSoundTurnLogKeyRef.current = latestKey;
   }, [room.roomCode, room.turnLog, soundEnabled, soundVolume]);
+
+  useEffect(() => {
+    return () => {
+      voiceAudioRef.current?.pause();
+      voiceAudioRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     if (!canCompare) {
