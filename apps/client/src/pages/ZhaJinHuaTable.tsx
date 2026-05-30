@@ -35,6 +35,8 @@ const ZJH_TURN_RING_SRC = "/assets/flash/0baa0bf0-d89d-419e-be7a-1bca8cc44b53.36
 const ZJH_MUSIC_SRC = "/assets/audio/zhajinhua.mp3";
 const ZJH_EFFECT_BASE = "/assets/audio/zhajinhua/effects";
 const ZJH_EMPTY_LOG_KEY = "__empty_zjh_turn_log__";
+const ZJH_ACTION_SOUND_DEDUPE_MS = 3000;
+const ZJH_ACTION_SOUND_STORAGE_PREFIX = "zjh:action-sound:";
 const zjhEffectSrc = (fileName: string) => `${ZJH_EFFECT_BASE}/${fileName}`;
 const ZJH_SOUND_EFFECTS = {
   dealSequence: zjhEffectSrc("deal_sequence.mp3"),
@@ -42,31 +44,97 @@ const ZJH_SOUND_EFFECTS = {
   raiseChips: zjhEffectSrc("bet_chips.mp3"),
   compareCue: zjhEffectSrc("compare_cue.mp3"),
   settlement: zjhEffectSrc("settlement_bell.mp3"),
-  seeVoices: [
-    zjhEffectSrc("see_cards_female.mp3"),
-    zjhEffectSrc("see_cant_wait_female.mp3"),
-    zjhEffectSrc("see_market_female.mp3")
-  ],
-  callVoices: [
-    zjhEffectSrc("call_i_call_female.mp3"),
-    zjhEffectSrc("call_not_scared_female.mp3"),
-    zjhEffectSrc("call_endure_female.mp3")
-  ],
-  raiseVoices: [
-    zjhEffectSrc("raise_female.mp3"),
-    zjhEffectSrc("raise_pressure_female.mp3"),
-    zjhEffectSrc("raise_last_try_female.mp3"),
-    zjhEffectSrc("raise_exciting_female.mp3"),
-    zjhEffectSrc("raise_interesting_female.mp3")
-  ],
-  foldVoices: [
-    zjhEffectSrc("fold_no_call_female.mp3"),
-    zjhEffectSrc("fold_no_play_anymore_female.mp3"),
-    zjhEffectSrc("fold_safety_first_female.mp3"),
-    zjhEffectSrc("fold_give_up_female.mp3")
-  ],
-  compareVoices: [zjhEffectSrc("compare_female.mp3")]
+  seeVoice: zjhEffectSrc("see_cards_female.mp3"),
+  callVoice: zjhEffectSrc("call_i_call_female.mp3"),
+  raiseVoice: zjhEffectSrc("raise_female.mp3"),
+  foldVoice: zjhEffectSrc("fold_no_call_female.mp3"),
+  compareVoice: zjhEffectSrc("compare_female.mp3")
 } as const;
+
+type ZjhAudioGlobal = typeof globalThis & {
+  __zjhPlayedActionSoundKeys?: Map<string, number>;
+  __zjhVoiceAudio?: HTMLAudioElement;
+};
+
+function getZjhAudioGlobal() {
+  return globalThis as ZjhAudioGlobal;
+}
+
+function getZjhPlayedActionSoundKeys() {
+  const audioGlobal = getZjhAudioGlobal();
+  audioGlobal.__zjhPlayedActionSoundKeys ??= new Map<string, number>();
+  return audioGlobal.__zjhPlayedActionSoundKeys;
+}
+
+function getZjhVoiceAudio() {
+  const audioGlobal = getZjhAudioGlobal();
+  audioGlobal.__zjhVoiceAudio ??= new Audio();
+  return audioGlobal.__zjhVoiceAudio;
+}
+
+function stopZjhActiveVoiceAudio() {
+  const voiceAudio = getZjhAudioGlobal().__zjhVoiceAudio;
+  if (!voiceAudio) {
+    return;
+  }
+
+  voiceAudio.pause();
+  voiceAudio.currentTime = 0;
+}
+
+function playZjhVoiceSound(src: string | undefined, volume: number) {
+  if (!src) {
+    return;
+  }
+
+  const voiceAudio = getZjhVoiceAudio();
+  voiceAudio.pause();
+  voiceAudio.currentTime = 0;
+  voiceAudio.src = src;
+  voiceAudio.volume = volume;
+  voiceAudio.play().catch(() => undefined);
+}
+
+function shouldPlayZjhActionSound(roomCode: string, actionKey: string) {
+  const now = Date.now();
+  const scopedKey = `${roomCode}:${actionKey}`;
+  const playedActionSoundKeys = getZjhPlayedActionSoundKeys();
+
+  for (const [key, playedAt] of playedActionSoundKeys) {
+    if (now - playedAt > ZJH_ACTION_SOUND_DEDUPE_MS) {
+      playedActionSoundKeys.delete(key);
+    }
+  }
+
+  if (playedActionSoundKeys.has(scopedKey)) {
+    return false;
+  }
+
+  if (!claimZjhActionSoundStorageLock(scopedKey, now)) {
+    playedActionSoundKeys.set(scopedKey, now);
+    return false;
+  }
+
+  playedActionSoundKeys.set(scopedKey, now);
+  return true;
+}
+
+function claimZjhActionSoundStorageLock(scopedKey: string, now: number) {
+  try {
+    const storage = globalThis.localStorage;
+    const storageKey = `${ZJH_ACTION_SOUND_STORAGE_PREFIX}${scopedKey}`;
+    const previousPlayedAt = Number(storage.getItem(storageKey));
+
+    if (Number.isFinite(previousPlayedAt) && now - previousPlayedAt < ZJH_ACTION_SOUND_DEDUPE_MS) {
+      return false;
+    }
+
+    storage.setItem(storageKey, String(now));
+    return true;
+  } catch {
+    return true;
+  }
+}
 const ZJH_BRAND_SRC = "/assets/pictures/zhajinghua.png";
 const ZJH_BRAND_ROSE_SRC = "/assets/pictures/meigui.png";
 const ZJH_WIN_SHENG_SRC = "/assets/pictures/sheng.png";
@@ -144,59 +212,54 @@ export function ZhaJinHuaTable({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
   const previousPhaseRef = useRef(room.phase);
   const soundRoomCodeRef = useRef(room.roomCode);
   const lastSoundTurnLogKeyRef = useRef(getZjhLogKey(room.turnLog.at(-1)) ?? ZJH_EMPTY_LOG_KEY);
 
-  function playZjhSound(src?: string, options?: { channel?: "effect" | "voice" }) {
+  function playZjhEffectSound(src?: string) {
     if (!soundEnabled || !src) {
       return;
     }
 
-    if (options?.channel === "voice") {
-      voiceAudioRef.current?.pause();
-      voiceAudioRef.current = null;
-    }
-
     const audio = new Audio(src);
     audio.volume = soundVolume;
-    if (options?.channel === "voice") {
-      voiceAudioRef.current = audio;
-    }
     audio.play().catch(() => undefined);
   }
 
-  function playRandomZjhVoice(pool: readonly string[]) {
-    playZjhSound(pickRandom(pool), { channel: "voice" });
+  function playZjhActionVoice(src: string) {
+    if (!soundEnabled) {
+      return;
+    }
+
+    playZjhVoiceSound(src, soundVolume);
   }
 
   function playZjhActionSounds(action: ZjhRoomView["turnLog"][number]) {
     if (action.action === "see") {
-      playRandomZjhVoice(ZJH_SOUND_EFFECTS.seeVoices);
+      playZjhActionVoice(ZJH_SOUND_EFFECTS.seeVoice);
       return;
     }
 
     if (action.action === "call") {
-      playZjhSound(ZJH_SOUND_EFFECTS.callChips);
-      playRandomZjhVoice(ZJH_SOUND_EFFECTS.callVoices);
+      playZjhEffectSound(ZJH_SOUND_EFFECTS.callChips);
+      playZjhActionVoice(ZJH_SOUND_EFFECTS.callVoice);
       return;
     }
 
     if (action.action === "raise") {
-      playZjhSound(ZJH_SOUND_EFFECTS.raiseChips);
-      playRandomZjhVoice(ZJH_SOUND_EFFECTS.raiseVoices);
+      playZjhEffectSound(ZJH_SOUND_EFFECTS.raiseChips);
+      playZjhActionVoice(ZJH_SOUND_EFFECTS.raiseVoice);
       return;
     }
 
     if (action.action === "fold") {
-      playRandomZjhVoice(ZJH_SOUND_EFFECTS.foldVoices);
+      playZjhActionVoice(ZJH_SOUND_EFFECTS.foldVoice);
       return;
     }
 
     if (action.action === "compare") {
-      playZjhSound(ZJH_SOUND_EFFECTS.compareCue);
-      playRandomZjhVoice(ZJH_SOUND_EFFECTS.compareVoices);
+      playZjhEffectSound(ZJH_SOUND_EFFECTS.compareCue);
+      playZjhActionVoice(ZJH_SOUND_EFFECTS.compareVoice);
     }
   }
 
@@ -206,13 +269,13 @@ export function ZhaJinHuaTable({
 
     if (previousPhase !== "playing" && room.phase === "playing") {
       setShowDealAnimation(true);
-      playZjhSound(ZJH_SOUND_EFFECTS.dealSequence);
+      playZjhEffectSound(ZJH_SOUND_EFFECTS.dealSequence);
       const timer = window.setTimeout(() => setShowDealAnimation(false), 1800);
       return () => window.clearTimeout(timer);
     }
 
     if (previousPhase !== "ended" && room.phase === "ended" && room.result) {
-      playZjhSound(ZJH_SOUND_EFFECTS.settlement);
+      playZjhEffectSound(ZJH_SOUND_EFFECTS.settlement);
     }
 
     return undefined;
@@ -239,7 +302,7 @@ export function ZhaJinHuaTable({
     }
 
     if (previousKey === ZJH_EMPTY_LOG_KEY) {
-      if (latestAction) {
+      if (latestAction && shouldPlayZjhActionSound(room.roomCode, latestKey)) {
         playZjhActionSounds(latestAction);
       }
       lastSoundTurnLogKeyRef.current = latestKey;
@@ -254,7 +317,7 @@ export function ZhaJinHuaTable({
 
     const newActions = room.turnLog.slice(previousIndex + 1);
     const latestNewAction = newActions.at(-1);
-    if (latestNewAction) {
+    if (latestNewAction && shouldPlayZjhActionSound(room.roomCode, latestKey)) {
       playZjhActionSounds(latestNewAction);
     }
     lastSoundTurnLogKeyRef.current = latestKey;
@@ -262,10 +325,15 @@ export function ZhaJinHuaTable({
 
   useEffect(() => {
     return () => {
-      voiceAudioRef.current?.pause();
-      voiceAudioRef.current = null;
+      stopZjhActiveVoiceAudio();
     };
   }, []);
+
+  useEffect(() => {
+    if (!soundEnabled) {
+      stopZjhActiveVoiceAudio();
+    }
+  }, [soundEnabled]);
 
   useEffect(() => {
     if (!canCompare) {
@@ -977,13 +1045,6 @@ function getZjhLogKey(action?: ZjhRoomView["turnLog"][number]) {
   return `${action.at}:${action.action}:${action.seat ?? "system"}:${action.label}`;
 }
 
-function pickRandom(items: readonly string[]) {
-  if (items.length === 0) {
-    return undefined;
-  }
-
-  return items[Math.floor(Math.random() * items.length)];
-}
 
 function formatZjhTableMessage(message?: string) {
   const cleaned = message?.replace(/^只剩一名玩家[，,]?\s*/, "").trim();

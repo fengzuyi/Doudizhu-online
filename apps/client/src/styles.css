@@ -1020,11 +1020,11 @@ button.playing-card.selectable:hover:not(:disabled) {
 .login-card-panel {
   position: relative;
   z-index: 2;
-  border: 1px solid rgba(255, 255, 255, 0.9);
+  border: 1px solid transparent;
   border-radius: 8px;
   padding: 34px;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 24px 44px rgba(80, 108, 99, 0.18);
+  background: transparent;
+  box-shadow: none;
   color: #20313a;
 }
 
