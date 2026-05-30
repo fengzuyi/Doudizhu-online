@@ -474,7 +474,8 @@ export class ZjhRoomManager {
       scores,
       hands
     };
-    room.message = `${message} ${winner.nickname} 赢得 ${room.pot} 分。`;
+    const settlementMessage = message.replace(/^只剩一名玩家，?/, "");
+    room.message = `${settlementMessage} ${winner.nickname} 赢得 ${room.pot} 分。`;
     this.pushSystem(room, room.message);
   }
 

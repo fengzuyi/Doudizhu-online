@@ -33,8 +33,62 @@ const ZJH_POT_CHIP_SRCS = [
 ];
 const ZJH_TURN_RING_SRC = "/assets/flash/0baa0bf0-d89d-419e-be7a-1bca8cc44b53.362fd_1.png";
 const ZJH_MUSIC_SRC = "/assets/audio/zhajinhua.mp3";
+const ZJH_EFFECT_BASE = "/assets/audio/zhajinhua/effects";
+const ZJH_EMPTY_LOG_KEY = "__empty_zjh_turn_log__";
+const zjhEffectSrc = (fileName: string) => `${ZJH_EFFECT_BASE}/${fileName}`;
+const ZJH_SOUND_EFFECTS = {
+  dealSequence: zjhEffectSrc("deal_sequence.mp3"),
+  callChips: zjhEffectSrc("chips.mp3"),
+  raiseChips: zjhEffectSrc("bet_chips.mp3"),
+  compareCue: zjhEffectSrc("compare_cue.mp3"),
+  settlement: zjhEffectSrc("settlement_bell.mp3"),
+  seeVoices: [
+    zjhEffectSrc("see_cards_female.mp3"),
+    zjhEffectSrc("see_cards_male.mp3"),
+    zjhEffectSrc("see_cant_wait_female.mp3"),
+    zjhEffectSrc("see_cant_wait_male.mp3"),
+    zjhEffectSrc("see_market_female.mp3"),
+    zjhEffectSrc("see_market_female_alt.mp3"),
+    zjhEffectSrc("see_interesting_cards.mp3")
+  ],
+  callVoices: [
+    zjhEffectSrc("call_female.mp3"),
+    zjhEffectSrc("call_male.mp3"),
+    zjhEffectSrc("call_i_call_female.mp3"),
+    zjhEffectSrc("call_i_call_male.mp3"),
+    zjhEffectSrc("call_not_scared_female.mp3"),
+    zjhEffectSrc("call_not_scared_male.mp3"),
+    zjhEffectSrc("call_endure_female.mp3"),
+    zjhEffectSrc("call_endure_female_alt.mp3")
+  ],
+  raiseVoices: [
+    zjhEffectSrc("raise_female.mp3"),
+    zjhEffectSrc("raise_male.mp3"),
+    zjhEffectSrc("raise_pressure_female.mp3"),
+    zjhEffectSrc("raise_pressure_male.mp3"),
+    zjhEffectSrc("raise_last_try_female.mp3"),
+    zjhEffectSrc("raise_last_try_male.mp3"),
+    zjhEffectSrc("raise_exciting_female.mp3"),
+    zjhEffectSrc("raise_exciting_male.mp3"),
+    zjhEffectSrc("raise_interesting_female.mp3")
+  ],
+  foldVoices: [
+    zjhEffectSrc("fold_no_call_female.mp3"),
+    zjhEffectSrc("fold_no_call_male.mp3"),
+    zjhEffectSrc("fold_no_play_anymore_female.mp3"),
+    zjhEffectSrc("fold_no_play_anymore_male.mp3"),
+    zjhEffectSrc("fold_safety_first_female.mp3"),
+    zjhEffectSrc("fold_safety_first_male.mp3"),
+    zjhEffectSrc("fold_give_up_female.mp3"),
+    zjhEffectSrc("fold_give_up_male.mp3")
+  ],
+  compareVoices: [zjhEffectSrc("compare_female.mp3"), zjhEffectSrc("compare_male.mp3")]
+} as const;
 const ZJH_BRAND_SRC = "/assets/pictures/zhajinghua.png";
 const ZJH_BRAND_ROSE_SRC = "/assets/pictures/meigui.png";
+const ZJH_WIN_SHENG_SRC = "/assets/pictures/sheng.png";
+const ZJH_WIN_LI_LEFT_SRC = "/assets/pictures/li1.png";
+const ZJH_WIN_LI_RIGHT_SRC = "/assets/pictures/li2.png";
 const ZJH_LEFT_PROMOS = [
   { src: "/assets/pictures/svip.avif", label: "SVIP" },
   { src: "/assets/pictures/manghechoujiang.avif", label: "盲盒抽奖" },
@@ -77,7 +131,6 @@ interface ZhaJinHuaTableProps {
 export function ZhaJinHuaTable({
   room,
   connected,
-  notice,
   onReady,
   onSee,
   onCall,
@@ -94,6 +147,8 @@ export function ZhaJinHuaTable({
   const opponents = room.players.filter((player) => player.seat !== room.selfSeat);
   const activeOpponents = opponents.filter((player) => player.connected && !player.folded && room.phase === "playing");
   const isMyTurn = room.phase === "playing" && room.currentTurn === room.selfSeat;
+  const winnerSeat = room.phase === "ended" ? room.result?.winnerSeat : undefined;
+  const tableMessage = formatZjhTableMessage(room.message);
   const canCompare =
     isMyTurn && activeOpponents.length > 0 && room.round > 1 && (Boolean(self?.seen) || activeOpponents.length <= 1);
   const compareTargetSeats = new Set(activeOpponents.map((player) => player.seat));
@@ -101,10 +156,57 @@ export function ZhaJinHuaTable({
   const [showDealAnimation, setShowDealAnimation] = useState(false);
   const [musicEnabled, setMusicEnabled] = useState(true);
   const [musicVolume, setMusicVolume] = useState(0.35);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [soundVolume, setSoundVolume] = useState(0.75);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const previousPhaseRef = useRef(room.phase);
+  const soundRoomCodeRef = useRef(room.roomCode);
+  const lastSoundTurnLogKeyRef = useRef(getZjhLogKey(room.turnLog.at(-1)) ?? ZJH_EMPTY_LOG_KEY);
+
+  function playZjhSound(src?: string) {
+    if (!soundEnabled || !src) {
+      return;
+    }
+
+    const audio = new Audio(src);
+    audio.volume = soundVolume;
+    audio.play().catch(() => undefined);
+  }
+
+  function playRandomZjhSound(pool: readonly string[]) {
+    playZjhSound(pickRandom(pool));
+  }
+
+  function playZjhActionSounds(action: ZjhRoomView["turnLog"][number]) {
+    if (action.action === "see") {
+      playRandomZjhSound(ZJH_SOUND_EFFECTS.seeVoices);
+      return;
+    }
+
+    if (action.action === "call") {
+      playZjhSound(ZJH_SOUND_EFFECTS.callChips);
+      playRandomZjhSound(ZJH_SOUND_EFFECTS.callVoices);
+      return;
+    }
+
+    if (action.action === "raise") {
+      playZjhSound(ZJH_SOUND_EFFECTS.raiseChips);
+      playRandomZjhSound(ZJH_SOUND_EFFECTS.raiseVoices);
+      return;
+    }
+
+    if (action.action === "fold") {
+      playRandomZjhSound(ZJH_SOUND_EFFECTS.foldVoices);
+      return;
+    }
+
+    if (action.action === "compare") {
+      playZjhSound(ZJH_SOUND_EFFECTS.compareCue);
+      playRandomZjhSound(ZJH_SOUND_EFFECTS.compareVoices);
+    }
+  }
 
   useEffect(() => {
     const previousPhase = previousPhaseRef.current;
@@ -112,12 +214,54 @@ export function ZhaJinHuaTable({
 
     if (previousPhase !== "playing" && room.phase === "playing") {
       setShowDealAnimation(true);
+      playZjhSound(ZJH_SOUND_EFFECTS.dealSequence);
       const timer = window.setTimeout(() => setShowDealAnimation(false), 1800);
       return () => window.clearTimeout(timer);
     }
 
+    if (previousPhase !== "ended" && room.phase === "ended" && room.result) {
+      playZjhSound(ZJH_SOUND_EFFECTS.settlement);
+    }
+
     return undefined;
-  }, [room.phase, room.roomCode]);
+  }, [room.phase, room.roomCode, room.result, soundEnabled, soundVolume]);
+
+  useEffect(() => {
+    const latestAction = room.turnLog.at(-1);
+    const latestKey = getZjhLogKey(latestAction) ?? ZJH_EMPTY_LOG_KEY;
+
+    if (soundRoomCodeRef.current !== room.roomCode) {
+      soundRoomCodeRef.current = room.roomCode;
+      lastSoundTurnLogKeyRef.current = latestKey;
+      return;
+    }
+
+    const previousKey = lastSoundTurnLogKeyRef.current;
+    if (latestKey === previousKey) {
+      return;
+    }
+
+    if (latestKey === ZJH_EMPTY_LOG_KEY) {
+      lastSoundTurnLogKeyRef.current = latestKey;
+      return;
+    }
+
+    if (previousKey === ZJH_EMPTY_LOG_KEY) {
+      room.turnLog.forEach(playZjhActionSounds);
+      lastSoundTurnLogKeyRef.current = latestKey;
+      return;
+    }
+
+    const previousIndex = room.turnLog.findIndex((action) => getZjhLogKey(action) === previousKey);
+    if (previousIndex === -1) {
+      lastSoundTurnLogKeyRef.current = latestKey;
+      return;
+    }
+
+    const newActions = room.turnLog.slice(previousIndex + 1);
+    newActions.forEach(playZjhActionSounds);
+    lastSoundTurnLogKeyRef.current = latestKey;
+  }, [room.roomCode, room.turnLog, soundEnabled, soundVolume]);
 
   useEffect(() => {
     if (!canCompare) {
@@ -179,6 +323,20 @@ export function ZhaJinHuaTable({
 
     setSelectingCompareTarget(false);
     onCompare(seat);
+  }
+
+  function requestCompare() {
+    if (!canCompare || activeOpponents.length === 0) {
+      return;
+    }
+
+    if (activeOpponents.length === 1) {
+      setSelectingCompareTarget(false);
+      onCompare(activeOpponents[0].seat);
+      return;
+    }
+
+    setSelectingCompareTarget((current) => !current);
   }
 
   function toggleMusic() {
@@ -261,16 +419,6 @@ export function ZhaJinHuaTable({
 
       <main className="zjh-main">
         <section className="zjh-table" aria-label="炸金花牌桌">
-          <div className="zjh-dealer-zone" aria-hidden="true">
-            <div className="zjh-dealer-glow" />
-            <div className="zjh-dealer-figure">
-              <span className="zjh-dealer-head" />
-              <span className="zjh-dealer-body" />
-              <span className="zjh-dealer-arm left" />
-              <span className="zjh-dealer-arm right" />
-            </div>
-            <div className="zjh-card-shoe" />
-          </div>
           {showDealAnimation && <ZjhDealAnimation players={room.players} selfSeat={room.selfSeat} />}
           <div className="zjh-seat-ring" aria-label="玩家座位">
             {tableSeatSlots.map(({ seat, player }, index) =>
@@ -282,6 +430,7 @@ export function ZhaJinHuaTable({
                   self={player.seat === room.selfSeat}
                   banker={room.bankerSeat === player.seat}
                   phase={room.phase}
+                  winner={winnerSeat === player.seat}
                   compareSelectable={selectingCompareTarget && compareTargetSeats.has(player.seat)}
                   onCompareTarget={() => compareWithSeat(player.seat)}
                   style={getZjhSeatOrbitStyle(index, tableSeatCount)}
@@ -304,7 +453,7 @@ export function ZhaJinHuaTable({
             {room.phase !== "lobby" && (
               <div className="zjh-message">
                 <Sparkles size={18} aria-hidden="true" />
-                {room.message ?? "等待玩家操作"}
+                {tableMessage ?? "等待玩家操作"}
               </div>
             )}
             <ZjhActionBar
@@ -319,7 +468,7 @@ export function ZhaJinHuaTable({
               onCall={onCall}
               onRaise={onRaise}
               onFold={onFold}
-              onRequestCompare={() => setSelectingCompareTarget((current) => !current)}
+              onRequestCompare={requestCompare}
               onCancelCompare={() => setSelectingCompareTarget(false)}
             />
           </section>
@@ -330,13 +479,16 @@ export function ZhaJinHuaTable({
         <ZjhSettingsDialog
           musicEnabled={musicEnabled}
           musicVolume={musicVolume}
+          soundEnabled={soundEnabled}
+          soundVolume={soundVolume}
           onMusicEnabledChange={setMusicEnabled}
           onMusicVolumeChange={setMusicVolume}
+          onSoundEnabledChange={setSoundEnabled}
+          onSoundVolumeChange={setSoundVolume}
           onClose={() => setSettingsOpen(false)}
         />
       )}
 
-      {room.phase === "ended" && <ZjhResultDialog room={room} notice={notice} onReady={onReady} />}
     </>
   );
 }
@@ -356,17 +508,26 @@ function ZjhPromoRail({ side, promos }: { side: "left" | "right"; promos: Array<
 function ZjhSettingsDialog({
   musicEnabled,
   musicVolume,
+  soundEnabled,
+  soundVolume,
   onMusicEnabledChange,
   onMusicVolumeChange,
+  onSoundEnabledChange,
+  onSoundVolumeChange,
   onClose
 }: {
   musicEnabled: boolean;
   musicVolume: number;
+  soundEnabled: boolean;
+  soundVolume: number;
   onMusicEnabledChange: (enabled: boolean) => void;
   onMusicVolumeChange: (volume: number) => void;
+  onSoundEnabledChange: (enabled: boolean) => void;
+  onSoundVolumeChange: (volume: number) => void;
   onClose: () => void;
 }) {
   const volumePercent = Math.round(musicVolume * 100);
+  const soundVolumePercent = Math.round(soundVolume * 100);
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="zjh-settings-title">
@@ -403,6 +564,34 @@ function ZjhSettingsDialog({
             value={volumePercent}
             disabled={!musicEnabled}
             onChange={(event) => onMusicVolumeChange(Number(event.target.value) / 100)}
+          />
+        </label>
+
+        <div className="zjh-setting-row">
+          <div>
+            <strong>游戏音效</strong>
+            <span>{soundEnabled ? "已开启" : "已关闭"}</span>
+          </div>
+          <button
+            className={`zjh-toggle-button ${soundEnabled ? "is-stop" : "is-start"}`}
+            type="button"
+            onClick={() => onSoundEnabledChange(!soundEnabled)}
+            aria-pressed={soundEnabled}
+          >
+            {soundEnabled ? "关闭" : "开启"}
+          </button>
+        </div>
+
+        <label className="zjh-volume-control">
+          <span>音效音量 {soundVolumePercent}%</span>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            value={soundVolumePercent}
+            disabled={!soundEnabled}
+            onChange={(event) => onSoundVolumeChange(Number(event.target.value) / 100)}
           />
         </label>
       </section>
@@ -454,7 +643,7 @@ function ZjhActionBar({
 
   if (room.phase === "ended") {
     return (
-      <div className="zjh-actions">
+      <div className="zjh-actions zjh-ended-actions">
         <button className="primary-btn" type="button" onClick={onReady}>
           <Play size={18} aria-hidden="true" />
           再来一局
@@ -611,6 +800,7 @@ function ZjhSeat({
   self,
   banker,
   phase,
+  winner,
   compareSelectable,
   onCompareTarget,
   style
@@ -620,6 +810,7 @@ function ZjhSeat({
   self: boolean;
   banker: boolean;
   phase: ZjhRoomView["phase"];
+  winner: boolean;
   compareSelectable: boolean;
   onCompareTarget: () => void;
   style: ZjhOrbitStyle;
@@ -655,6 +846,7 @@ function ZjhSeat({
           {visibleCards.length > 0
             ? visibleCards.map((card) => <ZjhCard key={card.id} card={card} />)
             : Array.from({ length: cardBackCount }).map((_, index) => <ZjhCardBack key={index} />)}
+          {winner && <ZjhWinMark />}
         </div>
       )}
       <button
@@ -761,6 +953,39 @@ function ZjhCardBack() {
   );
 }
 
+function ZjhWinMark() {
+  return (
+    <span className="zjh-win-mark" aria-label="胜利">
+      <img className="sheng" src={ZJH_WIN_SHENG_SRC} alt="" draggable={false} />
+      <span className="li" aria-hidden="true">
+        <img className="li-left" src={ZJH_WIN_LI_LEFT_SRC} alt="" draggable={false} />
+        <img className="li-right" src={ZJH_WIN_LI_RIGHT_SRC} alt="" draggable={false} />
+      </span>
+    </span>
+  );
+}
+
+function getZjhLogKey(action?: ZjhRoomView["turnLog"][number]) {
+  if (!action) {
+    return undefined;
+  }
+
+  return `${action.at}:${action.action}:${action.seat ?? "system"}:${action.label}`;
+}
+
+function pickRandom(items: readonly string[]) {
+  if (items.length === 0) {
+    return undefined;
+  }
+
+  return items[Math.floor(Math.random() * items.length)];
+}
+
+function formatZjhTableMessage(message?: string) {
+  const cleaned = message?.replace(/^只剩一名玩家[，,]?\s*/, "").trim();
+  return cleaned || undefined;
+}
+
 function getZjhCardImageSrc(card: Card) {
   if (card.suit === "joker") {
     return card.color === "red"
@@ -793,43 +1018,6 @@ function getZjhCardImageSrc(card: Card) {
   };
 
   return `${ZJH_ASSET_BASE}/cards/card_${suitName[card.suit]}_${rankName[card.rank]}.png`;
-}
-
-function ZjhResultDialog({ room, onReady }: { room: ZjhRoomView; notice: string; onReady: () => void }) {
-  const result = room.result;
-  return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="zjh-result-title">
-      <section className="result-dialog zjh-result-dialog">
-        <h2 id="zjh-result-title">本局结算</h2>
-        {result && <p>底池 {result.pot} 分</p>}
-        <div className="zjh-result-hands">
-          {result?.hands.map((hand) => (
-            <div className="zjh-result-row" key={hand.seat}>
-              <div>
-                <strong>{hand.nickname}</strong>
-              </div>
-              <div className="zjh-result-card-group">
-                <span className="zjh-result-hand-type">{hand.folded ? "弃牌" : hand.handLabel}</span>
-                <div className="mini-card-row">
-                  {hand.cards.map((card) => (
-                    <ZjhCard key={card.id} card={card} />
-                  ))}
-                </div>
-              </div>
-              <b className={(result.scores[hand.seat] ?? 0) >= 0 ? "score plus" : "score minus"}>
-                {(result.scores[hand.seat] ?? 0) >= 0 ? "+" : ""}
-                {result.scores[hand.seat] ?? 0}
-              </b>
-            </div>
-          ))}
-        </div>
-        <button className="primary-btn" type="button" onClick={onReady}>
-          <Play size={18} aria-hidden="true" />
-          再来一局
-        </button>
-      </section>
-    </div>
-  );
 }
 
 function phaseLabel(phase: ZjhRoomView["phase"]) {
