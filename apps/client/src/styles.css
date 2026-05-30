@@ -2909,18 +2909,25 @@ button.playing-card.selectable:hover:not(:disabled) {
   display: inline-flex;
   align-items: center;
   gap: 9px;
-  border: 0;
+  border: 1px solid rgba(117, 207, 255, 0.2);
   border-radius: 999px;
   padding: 0 16px;
-  background: #1a6b4e;
-  color: #ffffff;
-  box-shadow: 0 12px 28px rgba(23, 29, 27, 0.18);
+  background: linear-gradient(180deg, rgba(11, 35, 52, 0.95), rgba(3, 17, 29, 0.95));
+  color: #eafcff;
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.game-chat-toggle:hover:not(:disabled) {
+  border-color: rgba(117, 207, 255, 0.38);
+  background: linear-gradient(180deg, rgba(15, 48, 70, 0.98), rgba(5, 23, 38, 0.98));
 }
 
 .game-chat-toggle span {
   border-radius: 999px;
   padding: 4px 8px;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.14);
   font-size: 12px;
   font-weight: 850;
 }
