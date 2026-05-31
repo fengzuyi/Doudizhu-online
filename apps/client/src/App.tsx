@@ -87,6 +87,48 @@ function clearStoredRoomSession() {
   }
 }
 
+function copyTextWithSelection(text: string) {
+  const textarea = document.createElement("textarea");
+  const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.top = "0";
+  textarea.style.left = "0";
+  textarea.style.width = "1px";
+  textarea.style.height = "1px";
+  textarea.style.opacity = "0";
+  textarea.style.pointerEvents = "none";
+
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  textarea.setSelectionRange(0, text.length);
+
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    textarea.remove();
+    activeElement?.focus({ preventScroll: true });
+  }
+}
+
+async function copyTextToClipboard(text: string) {
+  if (navigator.clipboard?.writeText && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fall back for browsers that expose Clipboard API but deny it at runtime.
+    }
+  }
+
+  return copyTextWithSelection(text);
+}
+
 interface AuthResponse {
   token: string;
   profile: AuthProfile;
@@ -815,16 +857,14 @@ export default function App() {
     socket.emit("dbz:play:cards", { cardIds: daBanZiSelectedCards.map((card) => card.id) });
   }
 
-  function copyRoomCode() {
+  async function copyRoomCode() {
     const code = room?.roomCode ?? zjhRoom?.roomCode ?? daBanZiRoom?.roomCode;
     if (!code) {
       return;
     }
 
-    navigator.clipboard
-      ?.writeText(code)
-      .then(() => setToast("房间号已复制。"))
-      .catch(() => setToast("复制失败，请手动选择房间号。"));
+    const copied = await copyTextToClipboard(code);
+    setToast(copied ? "房间号已复制。" : "复制失败，请手动选择房间号。");
   }
 
   function sendChatMessage() {
