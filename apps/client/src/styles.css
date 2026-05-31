@@ -5042,9 +5042,9 @@ button.playing-card.selectable:hover:not(:disabled) {
 .zjh-win-mark {
   position: absolute;
   left: 50%;
-  top: 48%;
+  top: 42%;
   z-index: 8;
-  height: clamp(42px, 4.4vw, 62px);
+  height: clamp(22px, 2.4vw, 32px);
   display: inline-flex;
   align-items: flex-end;
   justify-content: center;
@@ -5054,11 +5054,6 @@ button.playing-card.selectable:hover:not(:disabled) {
   filter:
     drop-shadow(0 4px 0 rgba(104, 45, 0, 0.72))
     drop-shadow(0 8px 10px rgba(0, 0, 0, 0.44));
-}
-
-.zjh-seat-cards.self .zjh-win-mark {
-  top: 48%;
-  height: clamp(48px, 4.8vw, 68px);
 }
 
 .zjh-win-mark img {
@@ -5685,13 +5680,7 @@ button.zjh-avatar-frame:disabled {
   }
 
   .zjh-win-mark {
-    top: 48%;
-    height: 42px;
-  }
-
-  .zjh-seat-cards.self .zjh-win-mark {
-    top: 48%;
-    height: 48px;
+    height: 24px;
   }
 }
 
