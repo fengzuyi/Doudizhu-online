@@ -4777,7 +4777,7 @@ button.playing-card.selectable:hover:not(:disabled) {
   position: fixed;
   inset: -28px;
   z-index: 0;
-  background-image: url("/assets/zhajinhua/background/background.png");
+  background-image: url("/assets/zhajinhua/background/background.webp");
   background-size: cover;
   background-position: center;
   filter: blur(1px);
@@ -4927,7 +4927,7 @@ button.playing-card.selectable:hover:not(:disabled) {
     inset 0 0 0 1px rgba(255, 255, 255, 0.08);
   background-image:
     linear-gradient(180deg, rgba(2, 8, 16, 0.06), rgba(2, 8, 16, 0.2)),
-    url("/assets/zhajinhua/table/table.jpg");
+    url("/assets/zhajinhua/table/table.webp");
   background-size: cover;
   background-position: center center;
 }
