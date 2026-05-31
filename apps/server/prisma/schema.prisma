@@ -42,3 +42,35 @@ model UserSession {
   @@index([revokedAt])
   @@index([replacedAt])
 }
+
+model ChatMessage {
+  id       String   @id @db.VarChar(64)
+  account  String   @db.VarChar(64)
+  nickname String   @db.VarChar(32)
+  text     String   @db.VarChar(500)
+  at       DateTime @default(now())
+
+  @@index([account])
+  @@index([at])
+}
+
+model ChatMute {
+  account String   @id @db.VarChar(64)
+  mutedAt DateTime @default(now())
+  mutedBy String   @db.VarChar(64)
+  reason  String?  @db.VarChar(255)
+
+  @@index([mutedAt])
+}
+
+model AdminAuditLog {
+  id     String   @id @default(cuid())
+  at     DateTime @default(now())
+  admin  String   @db.VarChar(64)
+  action String   @db.VarChar(64)
+  target String?  @db.VarChar(191)
+  reason String?  @db.VarChar(255)
+
+  @@index([action])
+  @@index([at])
+}
