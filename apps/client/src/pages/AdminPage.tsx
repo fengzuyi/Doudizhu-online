@@ -95,7 +95,8 @@ function getActionLabel(action: string) {
     "user.revoke_sessions": "强制下线",
     "chat.mute": "禁言用户",
     "chat.unmute": "解除禁言",
-    "chat.delete_message": "删除聊天"
+    "chat.delete_message": "删除聊天",
+    "chat.clear_messages": "清空聊天"
   };
 
   return labels[action] ?? action;
@@ -417,6 +418,26 @@ export function AdminPage() {
               <h2>大厅聊天</h2>
               <p>删除违规消息，保留最近记录</p>
             </div>
+            <button
+              className="admin-chat-clear-button"
+              type="button"
+              onClick={() => {
+                if (!window.confirm("确定清空大厅聊天记录？")) {
+                  return;
+                }
+                runAction(
+                  () =>
+                    adminRequest("/api/admin/chat/messages", token, {
+                      method: "DELETE"
+                    }),
+                  "已清空大厅聊天"
+                );
+              }}
+              disabled={busy || messages.length === 0}
+            >
+              <Trash2 size={14} aria-hidden="true" />
+              清空
+            </button>
           </div>
           <div className="admin-chat-list">
             {messages.length === 0 ? (

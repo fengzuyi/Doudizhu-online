@@ -341,6 +341,19 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
     }
   });
 
+  app.delete("/api/admin/chat/messages", (request, response) => {
+    try {
+      const session = requireAdmin(request);
+      const removedCount = chatMessages.length;
+      chatMessages.splice(0, chatMessages.length);
+      pushAdminAudit({ admin: session.account, action: "chat.clear_messages", target: String(removedCount) });
+      emitChatState();
+      response.json({ ok: true, removedCount });
+    } catch (error) {
+      sendAuthError(response, error);
+    }
+  });
+
   app.delete("/api/admin/chat/messages/:id", (request, response) => {
     try {
       const session = requireAdmin(request);
