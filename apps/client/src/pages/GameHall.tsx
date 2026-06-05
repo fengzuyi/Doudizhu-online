@@ -42,7 +42,6 @@ const games = [
   {
     kind: "doudizhu" as const,
     name: "斗地主",
-    description: "三人好友局，轮流叫分，服务端判定出牌。",
     action: "选择",
     available: true,
     Icon: Crown
@@ -50,7 +49,6 @@ const games = [
   {
     kind: "zha_jin_hua" as const,
     name: "炸金花",
-    description: "2-12 人三张牌局，支持看牌、跟注、加注、比牌和弃牌。",
     action: "选择",
     available: true,
     Icon: CircleDot
@@ -58,7 +56,6 @@ const games = [
   {
     kind: "da_ban_zi" as const,
     name: "打板子",
-    description: "四人固定好友房，支持包了、叫队友、隐藏身份和收牌数结算。",
     action: "选择",
     available: true,
     Icon: Gamepad2
@@ -66,18 +63,9 @@ const games = [
   {
     kind: "mahjong" as const,
     name: "麻将",
-    description: "好友同桌，适合慢节奏休闲对局。",
     action: "敬请期待",
     available: false,
     Icon: Blocks
-  },
-  {
-    kind: "paodekuai" as const,
-    name: "跑得快",
-    description: "规则简单，适合碎片时间一起玩。",
-    action: "敬请期待",
-    available: false,
-    Icon: Gamepad2
   }
 ];
 
@@ -86,10 +74,6 @@ const selectedGameName: Record<GameKind, string> = {
   zha_jin_hua: "炸金花",
   da_ban_zi: "打板子"
 };
-
-function avatarText(nickname: string) {
-  return nickname.trim().slice(0, 1).toUpperCase() || "玩";
-}
 
 export function GameHall({
   profile,
@@ -112,7 +96,6 @@ export function GameHall({
   onChatDraftChange,
   onSendChat
 }: GameHallProps) {
-  const avatar = avatarText(profile.nickname);
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const currentGameName = selectedGameName[selectedGame];
 
@@ -149,15 +132,10 @@ export function GameHall({
             </span>
             <div>
               <h1>云上棋牌室</h1>
-              <p>朋友局 · 轻松玩 · 不打扰</p>
             </div>
           </div>
 
           <div className="friends-top-actions">
-            <span className="friends-user-chip">
-              <span className="friends-small-avatar">{avatar}</span>
-              <strong>{profile.nickname}</strong>
-            </span>
             <span className={`friends-service ${connected ? "online" : "offline"}`}>
               {connected ? "服务已连接" : "服务离线"}
             </span>
@@ -230,12 +208,12 @@ export function GameHall({
             <div className="friends-welcome">
               <div>
                 <h2>和朋友开一局吗？</h2>
-                <p>选择游戏后创建房间，把房号发给好友。界面保持简单，只保留一起玩需要的功能。</p>
+                <p>选择游戏后创建房间，把房号发给好友。</p>
               </div>
               <div className="friends-table-art" aria-hidden="true">
-                <span className="friends-mini-card friends-card-one">A</span>
-                <span className="friends-mini-card friends-card-two">K</span>
-                <span className="friends-mini-card friends-card-three">Q</span>
+                <img className="friends-mini-card friends-card-one" src="/assets/zhajinhua/cards/card_spade_1.png" alt="" draggable={false} />
+                <img className="friends-mini-card friends-card-two" src="/assets/zhajinhua/cards/card_heart_13.png" alt="" draggable={false} />
+                <img className="friends-mini-card friends-card-three" src="/assets/zhajinhua/cards/card_clubs_12.png" alt="" draggable={false} />
               </div>
             </div>
 
@@ -254,7 +232,6 @@ export function GameHall({
                       <Icon size={26} aria-hidden="true" />
                     </span>
                     <h4>{game.name}</h4>
-                    <p>{game.description}</p>
                     <button
                       type="button"
                       onClick={

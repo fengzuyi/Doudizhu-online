@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from "react";
-import { Gamepad2, ShieldCheck, Sparkles, UserPlus, X } from "lucide-react";
+import { Gamepad2, ShieldCheck, UserPlus, X } from "lucide-react";
 
 export interface AuthProfile {
   account: string;
@@ -28,7 +28,7 @@ interface LoginPageProps {
   onInfo: (message: string) => void;
 }
 
-export function LoginPage({ connected, initialAccount, isBusy, onLogin, onRegister, onInfo }: LoginPageProps) {
+export function LoginPage({ initialAccount, isBusy, onLogin, onRegister, onInfo }: LoginPageProps) {
   const [account, setAccount] = useState(initialAccount);
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
@@ -96,6 +96,11 @@ export function LoginPage({ connected, initialAccount, isBusy, onLogin, onRegist
 
   return (
     <main className="login-page" aria-label="棋牌游戏登录">
+      <div className="login-space-scene" aria-hidden="true">
+        <span className="login-moon" />
+        <span className="login-star-stream stream-1" />
+        <span className="login-star-stream stream-2" />
+      </div>
       <div className="floating-symbol symbol-1">♠</div>
       <div className="floating-symbol symbol-2">♥</div>
       <div className="floating-symbol symbol-3">♣</div>
@@ -103,30 +108,20 @@ export function LoginPage({ connected, initialAccount, isBusy, onLogin, onRegist
       <div className="floating-symbol symbol-5">中</div>
 
       <section className="login-hero" aria-label="大厅介绍">
-        <div className="login-tag">
-          <Sparkles size={16} aria-hidden="true" />
-          轻松开局 · 好友同桌
-        </div>
+        <div className="login-visual-stack">
+          <h1>云上棋牌室</h1>
 
-        <h1>云上棋牌室</h1>
-        <p>
-          柔和节奏，安静开局。
-          <br />
-          登录后进入游戏大厅，选择你想玩的好友牌局。
-        </p>
-
-        <div className="login-table-visual" aria-hidden="true">
-          <div className="login-table-inner" />
-          <div className="login-cards">
-            <div className="login-card-face login-card-1">A</div>
-            <div className="login-card-face login-card-2">K</div>
-            <div className="login-card-face login-card-3">Q</div>
-            <div className="login-card-face login-card-4">J</div>
-            <div className="login-card-face login-card-5">10</div>
+          <div className="login-table-visual" aria-hidden="true">
+            <div className="login-table-inner" />
+            <div className="login-cards">
+              <img className="login-card-face login-card-1" src="/assets/zhajinhua/cards/card_spade_1.png" alt="" draggable={false} />
+              <img className="login-card-face login-card-2" src="/assets/zhajinhua/cards/card_heart_13.png" alt="" draggable={false} />
+              <img className="login-card-face login-card-3" src="/assets/zhajinhua/cards/card_clubs_12.png" alt="" draggable={false} />
+              <img className="login-card-face login-card-4" src="/assets/zhajinhua/cards/card_diamond_11.png" alt="" draggable={false} />
+              <img className="login-card-face login-card-5" src="/assets/zhajinhua/cards/card_spade_10.png" alt="" draggable={false} />
+            </div>
           </div>
         </div>
-
-        <div className="recommend-box">今日推荐：斗地主好友房 · 慢速出牌 · 新手友好</div>
       </section>
 
       <section className="login-card-panel" aria-label="登录游戏">
@@ -134,7 +129,6 @@ export function LoginPage({ connected, initialAccount, isBusy, onLogin, onRegist
           <Gamepad2 size={28} aria-hidden="true" />
           <div>
             <h2>欢迎回来</h2>
-            <p>登录后进入大厅，继续你的好友房牌局</p>
           </div>
         </div>
 
@@ -211,9 +205,6 @@ export function LoginPage({ connected, initialAccount, isBusy, onLogin, onRegist
           </button>
         </div>
 
-        <span className={`login-status ${connected ? "online" : "offline"}`}>
-          {connected ? "服务已连接" : "服务离线"}
-        </span>
       </section>
 
       {registerOpen && (
