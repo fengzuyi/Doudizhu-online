@@ -108,6 +108,9 @@ ADMIN_PASSWORD=你的强密码
 AUTH_SESSION_TTL_DAYS=30
 LOG_DIR=/www/server/doudizhu-data/logs
 LOG_TO_FILE=true
+LIVEKIT_URL=wss://voice.你的域名
+LIVEKIT_API_KEY=你的LiveKit API Key
+LIVEKIT_API_SECRET=你的LiveKit API Secret
 ROOM_CLEANUP_INTERVAL_MS=300000
 EMPTY_ROOM_TTL_MS=60000
 ENDED_ROOM_TTL_MS=1800000
@@ -138,6 +141,9 @@ ADMIN_PASSWORD='888888' \
 AUTH_SESSION_TTL_DAYS=30 \
 LOG_DIR=/www/server/doudizhu-data/logs \
 LOG_TO_FILE=true \
+LIVEKIT_URL=wss://voice.ariescloud.art \
+LIVEKIT_API_KEY='你的LiveKit API Key' \
+LIVEKIT_API_SECRET='你的LiveKit API Secret' \
 ROOM_CLEANUP_INTERVAL_MS=300000 \
 EMPTY_ROOM_TTL_MS=60000 \
 ENDED_ROOM_TTL_MS=1800000 \
@@ -159,7 +165,22 @@ pm2 save
 
 不要把 `ADMIN_ACCOUNT`、`ADMIN_PASSWORD`、`AUTH_SESSION_TTL_DAYS` 写在同一行。
 
-## 6. 配置 Nginx
+## 6. 配置 LiveKit 语音服务
+
+房间语音依赖独立的 LiveKit WebRTC/SFU 服务。游戏后端只负责签发短期 token，不承载音频流。
+
+- 推荐使用独立子域，例如 `voice.你的域名`。
+- 浏览器麦克风和 WebRTC 生产环境需要 HTTPS/WSS。
+- 如果玩家跨运营商、公司网络或复杂路由环境较多，LiveKit 需要配置 TURN。
+- 未配置 `LIVEKIT_URL`、`LIVEKIT_API_KEY`、`LIVEKIT_API_SECRET` 时，普通游戏照常运行，语音按钮会提示未配置。
+
+`LIVEKIT_URL` 应填写客户端可访问的地址，例如：
+
+```env
+LIVEKIT_URL=wss://voice.你的域名
+```
+
+## 7. 配置 Nginx
 
 宝塔添加站点：
 
@@ -207,7 +228,7 @@ nginx -t
 systemctl reload nginx
 ```
 
-## 7. 验证
+## 8. 验证
 
 ```bash
 pm2 status
@@ -223,7 +244,7 @@ https://你的域名/
 https://你的域名/admin
 ```
 
-## 8. 服务未启动排查
+## 9. 服务未启动排查
 
 先看 PM2 日志：
 
@@ -252,7 +273,7 @@ node apps/server/dist/index.js
 
 如果这里能看到 `server.started`，说明后端本身能启动，问题在 PM2 环境变量或面板配置。
 
-## 9. 更新部署
+## 10. 更新部署
 
 ```bash
 cd /www/wwwroot/doudizhu

@@ -3,6 +3,7 @@ import { io as createClient } from "socket.io-client";
 import type { AddressInfo } from "node:net";
 import type { Server as HttpServer } from "node:http";
 import type { Socket } from "socket.io-client";
+import { TokenVerifier } from "livekit-server-sdk";
 import type {
   ChatMessage,
   ClientToServerEvents,
@@ -414,6 +415,83 @@ describe("socket game flow", () => {
     expect(state.baoCurrentSeat).toBeDefined();
     expect(state.players.find((player) => player.seat === state.selfSeat)?.hand).toHaveLength(13);
     expect(state.players.find((player) => player.seat !== state.selfSeat)?.hand).toBeUndefined();
+  });
+
+  it("rejects voice tokens before the account joins the requested room", async () => {
+    const account = await registerAccount(baseUrl, "voice-outsider", "Voice Outsider");
+
+    const response = await fetch(`${baseUrl}/api/voice/token`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${account.token}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({ gameKind: "doudizhu", roomCode: "ABCD" })
+    });
+    const body = (await response.json()) as { code: string };
+
+    expect(response.status).toBe(403);
+    expect(body.code).toBe("VOICE_ROOM_FORBIDDEN");
+  });
+
+  it("issues scoped LiveKit voice tokens for players in a room", async () => {
+    const previousLiveKitUrl = process.env.LIVEKIT_URL;
+    const previousLiveKitApiKey = process.env.LIVEKIT_API_KEY;
+    const previousLiveKitApiSecret = process.env.LIVEKIT_API_SECRET;
+    process.env.LIVEKIT_URL = "ws://livekit.test";
+    process.env.LIVEKIT_API_KEY = "test-api-key";
+    process.env.LIVEKIT_API_SECRET = "test-secret";
+
+    try {
+      const client = await connectClient(baseUrl);
+      clients = [client];
+      const account = await bindRegisteredAccount(baseUrl, client, "voice-alpha", "Voice Alpha");
+
+      const createdState = waitForState(client);
+      client.emit("room:create", { nickname: "Ignored" });
+      const roomCode = (await createdState).roomCode;
+
+      const response = await fetch(`${baseUrl}/api/voice/token`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${account.token}`,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ gameKind: "doudizhu", roomCode })
+      });
+      const body = (await response.json()) as { url: string; token: string; roomName: string; participantName: string };
+
+      expect(response.status).toBe(200);
+      expect(body.url).toBe("ws://livekit.test");
+      expect(body.roomName).toBe(`voice_doudizhu_${roomCode}`);
+      expect(body.participantName).toBe("Voice Alpha");
+
+      const grants = await new TokenVerifier("test-api-key", "test-secret").verify(body.token);
+      expect(grants.sub).toBe("voice-alpha");
+      expect(grants.name).toBe("Voice Alpha");
+      expect(grants.video?.roomJoin).toBe(true);
+      expect(grants.video?.room).toBe(`voice_doudizhu_${roomCode}`);
+      expect(grants.video?.canPublish).toBe(true);
+      expect(grants.video?.canSubscribe).toBe(true);
+      expect(grants.video?.canPublishData).toBe(false);
+      expect(grants.video?.canPublishSources).toEqual(["microphone"]);
+    } finally {
+      if (previousLiveKitUrl === undefined) {
+        delete process.env.LIVEKIT_URL;
+      } else {
+        process.env.LIVEKIT_URL = previousLiveKitUrl;
+      }
+      if (previousLiveKitApiKey === undefined) {
+        delete process.env.LIVEKIT_API_KEY;
+      } else {
+        process.env.LIVEKIT_API_KEY = previousLiveKitApiKey;
+      }
+      if (previousLiveKitApiSecret === undefined) {
+        delete process.env.LIVEKIT_API_SECRET;
+      } else {
+        process.env.LIVEKIT_API_SECRET = previousLiveKitApiSecret;
+      }
+    }
   });
 
   it("rejects chat messages before a socket joins chat", async () => {

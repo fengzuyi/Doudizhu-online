@@ -12,6 +12,7 @@ import {
   Users
 } from "lucide-react";
 import type { Card, DaBanZiPartnerCallOption, DaBanZiPlayerView, DaBanZiRoomView } from "@doudizhu/shared";
+import type { ReactNode } from "react";
 
 interface DaBanZiTableProps {
   room: DaBanZiRoomView;
@@ -27,6 +28,7 @@ interface DaBanZiTableProps {
   onCopyRoomCode: () => void;
   onLeave: () => void;
   onInfo: (message: string) => void;
+  voiceDock?: ReactNode;
 }
 
 export function DaBanZiTable({
@@ -42,7 +44,8 @@ export function DaBanZiTable({
   onPass,
   onCopyRoomCode,
   onLeave,
-  onInfo
+  onInfo,
+  voiceDock
 }: DaBanZiTableProps) {
   const self = room.players.find((player) => player.seat === room.selfSeat);
   const opponents = room.players.filter((player) => player.seat !== room.selfSeat);
@@ -161,6 +164,7 @@ export function DaBanZiTable({
               )}
             </div>
           </section>
+          {voiceDock}
         </section>
 
         <aside className="dbz-log-panel" aria-label="牌局记录">

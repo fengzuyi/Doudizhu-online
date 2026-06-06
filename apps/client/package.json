@@ -12,6 +12,7 @@
   "dependencies": {
     "@doudizhu/shared": "file:../../packages/shared",
     "@vitejs/plugin-react": "^4.3.4",
+    "livekit-client": "^2.19.1",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

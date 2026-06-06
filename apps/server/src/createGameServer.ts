@@ -2,8 +2,9 @@ import cors from "cors";
 import express from "express";
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
+import { AccessToken, TrackSource } from "livekit-server-sdk";
 import { Server } from "socket.io";
-import type { ChatMessage, ClientToServerEvents, ServerToClientEvents } from "@doudizhu/shared";
+import type { ChatMessage, ClientToServerEvents, GameKind, ServerToClientEvents } from "@doudizhu/shared";
 import { AuthException, AuthManager } from "./authManager.js";
 import type { AuthRepository } from "./authRepository.js";
 import { GameException, RoomManager } from "./roomManager.js";
@@ -35,6 +36,7 @@ const DEFAULT_CLIENT_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"
 const DEFAULT_ADMIN_ACCOUNT = "admin";
 const DEFAULT_ADMIN_PASSWORD = "admin123456";
 const ADMIN_SESSION_TTL_MS = 12 * 60 * 60_000;
+const VOICE_TOKEN_TTL_SECONDS = 2 * 60 * 60;
 
 function getClientOrigins() {
   const raw = process.env.CLIENT_ORIGIN ?? process.env.CORS_ORIGIN;
@@ -65,6 +67,30 @@ interface GameServerOptions {
 function numberFromEnv(name: string, fallback: number) {
   const value = Number(process.env[name]);
   return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function normalizeVoiceGameKind(value: unknown): GameKind | undefined {
+  return value === "doudizhu" || value === "zha_jin_hua" || value === "da_ban_zi" ? value : undefined;
+}
+
+function normalizeVoiceRoomCode(value: unknown) {
+  return typeof value === "string" ? value.trim().toUpperCase() : "";
+}
+
+function buildVoiceRoomName(gameKind: GameKind, roomCode: string) {
+  return `voice_${gameKind}_${roomCode}`;
+}
+
+function getLiveKitConfig() {
+  const url = process.env.LIVEKIT_URL?.trim();
+  const apiKey = process.env.LIVEKIT_API_KEY?.trim();
+  const apiSecret = process.env.LIVEKIT_API_SECRET?.trim();
+
+  if (!url || !apiKey || !apiSecret) {
+    return undefined;
+  }
+
+  return { url, apiKey, apiSecret };
 }
 
 export function createGameServerWithOptions(options: GameServerOptions = {}) {
@@ -230,6 +256,53 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       await authManager.logout(token);
       logger.info("auth.logout");
       response.json({ ok: true });
+    } catch (error) {
+      sendAuthError(response, error);
+    }
+  });
+
+  app.post("/api/voice/token", async (request, response) => {
+    try {
+      const profile = await authManager.me(getBearerToken(request.headers.authorization));
+      const gameKind = normalizeVoiceGameKind(request.body?.gameKind);
+      const roomCode = normalizeVoiceRoomCode(request.body?.roomCode);
+
+      if (!gameKind || !roomCode) {
+        throw new AuthException("VOICE_ROOM_REQUIRED", "请先进入游戏房间后再开启语音。", 400);
+      }
+
+      if (!hasAccountInGameRoom(profile.account, gameKind, roomCode)) {
+        throw new AuthException("VOICE_ROOM_FORBIDDEN", "请先加入对应房间后再开启语音。", 403);
+      }
+
+      const livekit = getLiveKitConfig();
+      if (!livekit) {
+        throw new AuthException("VOICE_NOT_CONFIGURED", "语音服务未配置，请联系管理员设置 LiveKit。", 503);
+      }
+
+      const roomName = buildVoiceRoomName(gameKind, roomCode);
+      const token = new AccessToken(livekit.apiKey, livekit.apiSecret, {
+        identity: profile.account,
+        name: profile.nickname,
+        ttl: VOICE_TOKEN_TTL_SECONDS,
+        metadata: JSON.stringify({ account: profile.account, gameKind, roomCode })
+      });
+      token.addGrant({
+        roomJoin: true,
+        room: roomName,
+        canPublish: true,
+        canPublishSources: [TrackSource.MICROPHONE],
+        canSubscribe: true,
+        canPublishData: false
+      });
+
+      logger.info("voice.token_issued", { account: profile.account, gameKind, roomCode, roomName });
+      response.json({
+        url: livekit.url,
+        token: await token.toJwt(),
+        roomName,
+        participantName: profile.nickname
+      });
     } catch (error) {
       sendAuthError(response, error);
     }
@@ -444,6 +517,28 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
 
   function dbzSocketRoom(roomCode: string) {
     return `dbz:${roomCode}`;
+  }
+
+  function hasAccountInGameRoom(account: string, gameKind: GameKind, roomCode: string) {
+    for (const [socketId, session] of socketAuth.entries()) {
+      if (session.account !== account) {
+        continue;
+      }
+
+      if (gameKind === "doudizhu" && roomManager.getRoomForSocket(socketId)?.roomCode === roomCode) {
+        return true;
+      }
+
+      if (gameKind === "zha_jin_hua" && zjhRoomManager.getRoomForSocket(socketId)?.roomCode === roomCode) {
+        return true;
+      }
+
+      if (gameKind === "da_ban_zi" && daBanZiRoomManager.getRoomForSocket(socketId)?.roomCode === roomCode) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   function emitDaBanZiRoom(room: DaBanZiInternalRoom | undefined) {

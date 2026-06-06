@@ -9,11 +9,23 @@ import {
   Crown,
   HelpCircle,
   LogOut,
+  Mic,
+  MicOff,
+  PhoneOff,
   Play,
   Send,
   Settings,
   Users
 } from "lucide-react";
+import {
+  Room as LiveKitRoom,
+  RoomEvent,
+  Track,
+  type Participant,
+  type RemoteParticipant,
+  type RemoteTrack,
+  type RemoteTrackPublication
+} from "livekit-client";
 import type {
   BidScore,
   Card,
@@ -136,6 +148,13 @@ interface AuthResponse {
 
 interface AuthMeResponse {
   profile: AuthProfile;
+}
+
+interface VoiceTokenResponse {
+  url: string;
+  token: string;
+  roomName: string;
+  participantName: string;
 }
 
 class ApiException extends Error {
@@ -964,6 +983,15 @@ export default function App() {
           onCopyRoomCode={copyRoomCode}
           onLeave={requestLeaveRoom}
           onInfo={setToast}
+          voiceDock={
+            <GameVoiceDock
+              authToken={authToken}
+              gameKind="zha_jin_hua"
+              roomCode={zjhRoom.roomCode}
+              connected={connected}
+              onInfo={setToast}
+            />
+          }
         />
         {leaveConfirmOpen && <LeaveConfirmDialog onCancel={() => setLeaveConfirmOpen(false)} onConfirm={leaveRoom} />}
         <GameChatDock
@@ -1002,6 +1030,15 @@ export default function App() {
           onCopyRoomCode={copyRoomCode}
           onLeave={requestLeaveRoom}
           onInfo={setToast}
+          voiceDock={
+            <GameVoiceDock
+              authToken={authToken}
+              gameKind="da_ban_zi"
+              roomCode={daBanZiRoom.roomCode}
+              connected={connected}
+              onInfo={setToast}
+            />
+          }
         />
         {leaveConfirmOpen && <LeaveConfirmDialog onCancel={() => setLeaveConfirmOpen(false)} onConfirm={leaveRoom} />}
         <GameChatDock
@@ -1164,6 +1201,13 @@ export default function App() {
               </div>
             </div>
           </section>
+          <GameVoiceDock
+            authToken={authToken}
+            gameKind="doudizhu"
+            roomCode={room.roomCode}
+            connected={connected}
+            onInfo={setToast}
+          />
         </section>
       </main>
 
@@ -1537,6 +1581,231 @@ function GameChatDock({
       )}
     </aside>
   );
+}
+
+const VOICE_AUDIO_OPTIONS = {
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true
+};
+
+type VoiceStatus = "idle" | "connecting" | "connected" | "reconnecting" | "error";
+
+function GameVoiceDock({
+  authToken,
+  gameKind,
+  roomCode,
+  connected,
+  onInfo
+}: {
+  authToken: string;
+  gameKind: GameKind;
+  roomCode: string;
+  connected: boolean;
+  onInfo: (message: string) => void;
+}) {
+  const audioContainerRef = useRef<HTMLDivElement | null>(null);
+  const voiceRoomRef = useRef<LiveKitRoom | null>(null);
+  const [status, setStatus] = useState<VoiceStatus>("idle");
+  const [busy, setBusy] = useState(false);
+  const [micEnabled, setMicEnabled] = useState(false);
+  const [participantCount, setParticipantCount] = useState(0);
+  const [activeSpeakerLabel, setActiveSpeakerLabel] = useState("");
+  const [errorText, setErrorText] = useState("");
+
+  const joined = status === "connected" || status === "reconnecting";
+
+  function updateParticipantCount(room: LiveKitRoom) {
+    setParticipantCount(room.remoteParticipants.size + 1);
+  }
+
+  function attachRemoteAudio(track: RemoteTrack, participant: RemoteParticipant) {
+    if (track.kind !== Track.Kind.Audio) {
+      return;
+    }
+
+    const element = track.attach();
+    element.autoplay = true;
+    element.dataset.participantIdentity = participant.identity;
+    element.style.display = "none";
+    audioContainerRef.current?.appendChild(element);
+    element.play?.().catch(() => undefined);
+  }
+
+  function attachExistingRemoteAudio(room: LiveKitRoom) {
+    for (const participant of room.remoteParticipants.values()) {
+      for (const publication of participant.audioTrackPublications.values()) {
+        if (publication.isSubscribed && publication.track) {
+          attachRemoteAudio(publication.track, participant);
+        }
+      }
+    }
+  }
+
+  function resetVoiceState(nextStatus: VoiceStatus = "idle") {
+    voiceRoomRef.current?.removeAllListeners();
+    voiceRoomRef.current?.disconnect();
+    voiceRoomRef.current = null;
+    audioContainerRef.current?.replaceChildren();
+    setStatus(nextStatus);
+    setMicEnabled(false);
+    setParticipantCount(0);
+    setActiveSpeakerLabel("");
+  }
+
+  useEffect(() => {
+    return () => resetVoiceState();
+  }, [gameKind, roomCode]);
+
+  async function connectVoice() {
+    if (busy || voiceRoomRef.current) {
+      return;
+    }
+
+    if (!connected) {
+      onInfo("游戏连接恢复后才能加入语音。");
+      return;
+    }
+
+    setBusy(true);
+    setStatus("connecting");
+    setErrorText("");
+
+    let livekitRoom: LiveKitRoom | undefined;
+    try {
+      const credentials = await requestJson<VoiceTokenResponse>("/api/voice/token", {
+        method: "POST",
+        headers: authHeaders(authToken),
+        body: JSON.stringify({ gameKind, roomCode })
+      });
+
+      livekitRoom = new LiveKitRoom({
+        adaptiveStream: false,
+        dynacast: false,
+        audioCaptureDefaults: VOICE_AUDIO_OPTIONS
+      });
+
+      livekitRoom
+        .on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _publication: RemoteTrackPublication, participant: RemoteParticipant) => {
+          attachRemoteAudio(track, participant);
+        })
+        .on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
+          track.detach().forEach((element) => element.remove());
+        })
+        .on(RoomEvent.ParticipantConnected, () => updateParticipantCount(livekitRoom!))
+        .on(RoomEvent.ParticipantDisconnected, () => updateParticipantCount(livekitRoom!))
+        .on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
+          setActiveSpeakerLabel(formatActiveSpeakers(speakers));
+        })
+        .on(RoomEvent.Reconnecting, () => setStatus("reconnecting"))
+        .on(RoomEvent.Reconnected, () => setStatus("connected"))
+        .on(RoomEvent.Disconnected, () => resetVoiceState())
+        .on(RoomEvent.MediaDevicesError, () => {
+          const message = "麦克风不可用，请检查浏览器权限或设备。";
+          setErrorText(message);
+          onInfo(message);
+        });
+
+      voiceRoomRef.current = livekitRoom;
+      await livekitRoom.connect(credentials.url, credentials.token);
+      attachExistingRemoteAudio(livekitRoom);
+      updateParticipantCount(livekitRoom);
+      setStatus("connected");
+      onInfo("已加入房间语音。");
+    } catch (error) {
+      livekitRoom?.removeAllListeners();
+      livekitRoom?.disconnect();
+      if (voiceRoomRef.current === livekitRoom) {
+        voiceRoomRef.current = null;
+      }
+      audioContainerRef.current?.replaceChildren();
+      const message = error instanceof Error ? error.message : "加入语音失败，请稍后再试。";
+      setErrorText(message);
+      setStatus("error");
+      setMicEnabled(false);
+      setParticipantCount(0);
+      onInfo(message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleMicrophone() {
+    const room = voiceRoomRef.current;
+    if (!room || busy) {
+      return;
+    }
+
+    const nextEnabled = !micEnabled;
+    setBusy(true);
+    setErrorText("");
+    try {
+      await room.localParticipant.setMicrophoneEnabled(nextEnabled, VOICE_AUDIO_OPTIONS);
+      setMicEnabled(nextEnabled);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "麦克风切换失败，请检查浏览器权限。";
+      setErrorText(message);
+      onInfo(message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const statusLabel =
+    status === "connecting"
+      ? "正在连接"
+      : status === "reconnecting"
+        ? "正在重连"
+        : status === "connected"
+          ? activeSpeakerLabel || `${participantCount} 人在线`
+          : status === "error"
+            ? errorText || "语音不可用"
+            : "房间实时语音";
+
+  return (
+    <aside className={`game-voice-dock ${joined ? "joined" : ""} ${micEnabled ? "speaking" : ""}`} aria-label="房间语音">
+      <div className="game-voice-card">
+        {!joined ? (
+          <button className="game-voice-main" type="button" onClick={connectVoice} disabled={busy || !connected}>
+            <Mic size={16} aria-hidden="true" />
+            <span>加入语音</span>
+            <small>{statusLabel}</small>
+          </button>
+        ) : (
+          <>
+            <button
+              className={`game-voice-main ${micEnabled ? "mic-on" : ""}`}
+              type="button"
+              onClick={toggleMicrophone}
+              disabled={busy}
+              aria-pressed={micEnabled}
+            >
+              {micEnabled ? <Mic size={18} aria-hidden="true" /> : <MicOff size={18} aria-hidden="true" />}
+              <span>{micEnabled ? "麦克风已开" : "麦克风已关"}</span>
+              <small>{statusLabel}</small>
+            </button>
+            <button className="game-voice-icon" type="button" onClick={() => resetVoiceState()} aria-label="退出语音">
+              <PhoneOff size={18} aria-hidden="true" />
+            </button>
+          </>
+        )}
+      </div>
+      <div ref={audioContainerRef} className="game-voice-audio" aria-hidden="true" />
+    </aside>
+  );
+}
+
+function formatActiveSpeakers(speakers: Participant[]) {
+  const names = speakers
+    .map((speaker) => speaker.name || speaker.identity)
+    .filter(Boolean)
+    .slice(0, 2);
+
+  if (names.length === 0) {
+    return "";
+  }
+
+  return names.length === 1 ? `${names[0]} 正在说话` : `${names.join("、")} 正在说话`;
 }
 
 function formatChatTime(timestamp: number) {

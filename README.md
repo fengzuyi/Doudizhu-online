@@ -203,6 +203,18 @@ DATABASE_URL=mysql://用户名:密码@127.0.0.1:3306/doudizhu
 AUTH_SESSION_TTL_DAYS=30
 LOG_DIR=/www/server/doudizhu-data/logs
 LOG_TO_FILE=true
+LIVEKIT_URL=wss://你的LiveKit域名
+LIVEKIT_API_KEY=你的LiveKit API Key
+LIVEKIT_API_SECRET=你的LiveKit API Secret
 ```
+
+## 房间语音
+
+- 游戏房间支持 LiveKit WebRTC 实时语音。
+- 语音只在牌桌内可用，大厅不开放公共语音。
+- 玩家必须已登录并已加入对应房间，后端才会签发 LiveKit token。
+- 默认加入语音后不开麦，玩家需要手动点击麦克风按钮。
+- 未配置 `LIVEKIT_URL`、`LIVEKIT_API_KEY`、`LIVEKIT_API_SECRET` 时，普通游戏不受影响，语音按钮会提示服务未配置。
+- 生产环境需要 HTTPS/WSS；弱网或复杂 NAT 环境建议为 LiveKit 配置 TURN。
 
 宝塔和 PM2 部署请看 [DEPLOYMENT.md](DEPLOYMENT.md)。

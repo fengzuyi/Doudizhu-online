@@ -3548,6 +3548,107 @@ button.playing-card.selectable:hover:not(:disabled) {
   color: #8ba09a;
 }
 
+.game-voice-dock {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 24;
+  width: min(196px, calc(100% - 28px));
+  pointer-events: none;
+}
+
+.game-voice-card {
+  pointer-events: auto;
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.game-voice-main,
+.game-voice-icon {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #eef8ff;
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.game-voice-main {
+  min-height: 42px;
+  min-width: 0;
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 8px;
+  border-radius: 10px;
+  padding: 6px 10px;
+  background: linear-gradient(180deg, rgba(39, 55, 68, 0.96), rgba(15, 24, 34, 0.96));
+  text-align: left;
+}
+
+.game-voice-main:hover:not(:disabled),
+.game-voice-icon:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: linear-gradient(180deg, rgba(47, 68, 83, 0.98), rgba(19, 31, 43, 0.98));
+}
+
+.game-voice-main:disabled,
+.game-voice-icon:disabled {
+  opacity: 0.64;
+  cursor: not-allowed;
+}
+
+.game-voice-main svg {
+  grid-row: 1 / span 2;
+  color: #9ed6ff;
+}
+
+.game-voice-main span,
+.game-voice-main small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-voice-main span {
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.game-voice-main small {
+  color: rgba(238, 248, 255, 0.72);
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.game-voice-main.mic-on {
+  border-color: rgba(115, 220, 166, 0.42);
+  background: linear-gradient(180deg, rgba(28, 79, 66, 0.98), rgba(10, 42, 37, 0.98));
+}
+
+.game-voice-main.mic-on svg {
+  color: #8ef0b7;
+}
+
+.game-voice-icon {
+  width: 42px;
+  min-height: 42px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  padding: 0;
+  background: rgba(45, 27, 34, 0.95);
+  color: #ffdad6;
+}
+
+.game-voice-audio {
+  display: none;
+}
+
 @media (max-width: 1020px) {
   .zen-game-shell {
     height: auto;
@@ -3805,6 +3906,29 @@ button.playing-card.selectable:hover:not(:disabled) {
     width: calc(100vw - 20px);
     min-height: 280px;
     max-height: min(430px, calc(100dvh - 88px));
+  }
+
+  .game-voice-dock {
+    right: 12px;
+    bottom: 12px;
+    width: min(190px, calc(100% - 24px));
+  }
+}
+
+@media (max-width: 560px) {
+  .game-voice-dock {
+    right: 10px;
+    bottom: 10px;
+    width: min(184px, calc(100% - 20px));
+  }
+
+  .game-voice-main {
+    min-height: 42px;
+  }
+
+  .game-voice-icon {
+    width: 42px;
+    min-height: 42px;
   }
 }
 

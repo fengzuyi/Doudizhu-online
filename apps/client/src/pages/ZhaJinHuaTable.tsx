@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import {
   Bell,
   ChevronDown,
@@ -177,6 +177,7 @@ interface ZhaJinHuaTableProps {
   onCopyRoomCode: () => void;
   onLeave: () => void;
   onInfo: (message: string) => void;
+  voiceDock?: ReactNode;
 }
 
 export function ZhaJinHuaTable({
@@ -190,7 +191,8 @@ export function ZhaJinHuaTable({
   onCompare,
   onCopyRoomCode,
   onLeave,
-  onInfo
+  onInfo,
+  voiceDock
 }: ZhaJinHuaTableProps) {
   const self = room.players.find((player) => player.seat === room.selfSeat);
   const tableSeatCount = Math.min(Math.max(room.maxPlayers, room.players.length, 2), 12);
@@ -544,6 +546,7 @@ export function ZhaJinHuaTable({
               onCancelCompare={() => setSelectingCompareTarget(false)}
             />
           </section>
+          {voiceDock}
         </section>
       </main>
 
