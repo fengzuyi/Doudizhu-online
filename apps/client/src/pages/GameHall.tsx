@@ -1,9 +1,5 @@
 import {
   Bell,
-  Blocks,
-  CircleDot,
-  Crown,
-  Gamepad2,
   KeyRound,
   LogOut,
   Plus,
@@ -40,32 +36,24 @@ interface GameHallProps {
 
 const games = [
   {
-    kind: "doudizhu" as const,
-    name: "斗地主",
-    action: "选择",
-    available: true,
-    Icon: Crown
+    kind: "da_ban_zi" as const,
+    name: "打板子",
+    action: "选择"
   },
   {
     kind: "zha_jin_hua" as const,
     name: "炸金花",
-    action: "选择",
-    available: true,
-    Icon: CircleDot
+    action: "选择"
   },
   {
-    kind: "da_ban_zi" as const,
-    name: "打板子",
-    action: "选择",
-    available: true,
-    Icon: Gamepad2
+    kind: "doudizhu" as const,
+    name: "斗地主",
+    action: "选择"
   },
   {
     kind: "mahjong" as const,
     name: "麻将",
-    action: "敬请期待",
-    available: false,
-    Icon: Blocks
+    action: "敬请期待"
   }
 ];
 
@@ -124,6 +112,13 @@ export function GameHall({
 
   return (
     <main className="hall-page friends-hall" aria-label="游戏大厅">
+      <div className="hall-shooting-stars" aria-hidden="true">
+        <span className="login-star-stream stream-1" />
+        <span className="login-star-stream stream-2" />
+        <span className="login-star-stream stream-3" />
+        <span className="login-star-stream stream-4" />
+        <span className="login-star-stream stream-5" />
+      </div>
       <div className="friends-hall-app">
         <header className="friends-topbar">
           <div className="friends-brand">
@@ -136,9 +131,6 @@ export function GameHall({
           </div>
 
           <div className="friends-top-actions">
-            <span className={`friends-service ${connected ? "online" : "offline"}`}>
-              {connected ? "服务已连接" : "服务离线"}
-            </span>
             <button className="friends-icon-button" type="button" onClick={() => onInfo("通知中心将在正式版开放。")} aria-label="通知">
               <Bell size={18} aria-hidden="true" />
             </button>
@@ -205,18 +197,6 @@ export function GameHall({
           </aside>
 
           <section className="friends-panel friends-center-panel">
-            <div className="friends-welcome">
-              <div>
-                <h2>和朋友开一局吗？</h2>
-                <p>选择游戏后创建房间，把房号发给好友。</p>
-              </div>
-              <div className="friends-table-art" aria-hidden="true">
-                <img className="friends-mini-card friends-card-one" src="/assets/zhajinhua/cards/card_spade_1.png" alt="" draggable={false} />
-                <img className="friends-mini-card friends-card-two" src="/assets/zhajinhua/cards/card_heart_13.png" alt="" draggable={false} />
-                <img className="friends-mini-card friends-card-three" src="/assets/zhajinhua/cards/card_clubs_12.png" alt="" draggable={false} />
-              </div>
-            </div>
-
             <div className="friends-section-head">
               <h3>选择游戏</h3>
               <span>{currentGameName} · 好友房模式</span>
@@ -224,13 +204,9 @@ export function GameHall({
 
             <div className="friends-game-grid">
               {games.map((game) => {
-                const Icon = game.Icon;
                 const selected = game.kind === selectedGame;
                 return (
-                  <article className={`friends-game-card ${selected ? "selected" : ""}`} key={game.name}>
-                    <span className="friends-game-icon">
-                      <Icon size={26} aria-hidden="true" />
-                    </span>
+                  <article className={`friends-game-card game-${game.kind} ${selected ? "selected" : ""}`} key={game.name}>
                     <h4>{game.name}</h4>
                     <button
                       type="button"

@@ -974,13 +974,34 @@ button.playing-card.selectable:hover:not(:disabled) {
 .stream-1 {
   left: 35%;
   top: 18%;
-  animation: loginShootingStar 7.8s ease-in-out infinite;
+  animation: loginShootingStar 4.8s ease-in-out infinite;
 }
 
 .stream-2 {
   left: 70%;
   top: 44%;
-  animation: loginShootingStar 10.4s ease-in-out 3.1s infinite;
+  animation: loginShootingStar 6.2s ease-in-out 1.2s infinite;
+}
+
+.stream-3 {
+  left: 58%;
+  top: 10%;
+  width: 180px;
+  animation: loginShootingStar 5.4s ease-in-out 2.1s infinite;
+}
+
+.stream-4 {
+  left: 88%;
+  top: 30%;
+  width: 250px;
+  animation: loginShootingStar 7s ease-in-out 0.7s infinite;
+}
+
+.stream-5 {
+  left: 46%;
+  top: 63%;
+  width: 160px;
+  animation: loginShootingStar 5.8s ease-in-out 3.4s infinite;
 }
 
 .floating-symbol {
@@ -2376,8 +2397,7 @@ button.playing-card.selectable:hover:not(:disabled) {
 .friends-brand,
 .friends-top-actions,
 .friends-profile-row,
-.friends-section-head,
-.friends-service {
+.friends-section-head {
   display: flex;
   align-items: center;
 }
@@ -2388,8 +2408,7 @@ button.playing-card.selectable:hover:not(:disabled) {
 }
 
 .friends-brand-logo,
-.friends-avatar,
-.friends-game-icon {
+.friends-avatar {
   display: grid;
   place-items: center;
   flex: 0 0 auto;
@@ -2406,7 +2425,6 @@ button.playing-card.selectable:hover:not(:disabled) {
 
 .friends-brand h1,
 .friends-profile-card h2,
-.friends-welcome h2,
 .friends-section-head h3,
 .friends-chat-card h3,
 .friends-game-card h4 {
@@ -2429,21 +2447,6 @@ button.playing-card.selectable:hover:not(:disabled) {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
-}
-
-.friends-service {
-  min-height: 44px;
-  border: 1px solid rgba(221, 235, 229, 0.92);
-  border-radius: 999px;
-  padding: 0 13px;
-  background: rgba(255, 255, 255, 0.68);
-  color: #116d48;
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.friends-service.offline {
-  color: var(--red-deep);
 }
 
 .friends-icon-button,
@@ -2487,7 +2490,7 @@ button.playing-card.selectable:hover:not(:disabled) {
 
 .friends-center-panel {
   display: grid;
-  grid-template-rows: 150px auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 18px;
 }
 
@@ -2586,92 +2589,6 @@ button.playing-card.selectable:hover:not(:disabled) {
   box-shadow: none;
 }
 
-.friends-welcome {
-  position: relative;
-  min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 210px;
-  align-items: center;
-  gap: 18px;
-  overflow: hidden;
-  border-radius: 8px;
-  padding: 24px 28px;
-  background: linear-gradient(135deg, rgba(101, 184, 154, 0.94), rgba(157, 219, 193, 0.86));
-  color: #ffffff;
-  box-shadow: 0 16px 30px rgba(101, 184, 154, 0.2);
-}
-
-.friends-welcome h2 {
-  color: #ffffff;
-  font-size: 30px;
-  line-height: 1.08;
-}
-
-.friends-welcome p {
-  max-width: 460px;
-  margin: 10px 0 0;
-  color: rgba(255, 255, 255, 0.93);
-  font-size: 15px;
-  line-height: 1.45;
-  font-weight: 750;
-}
-
-.friends-table-art {
-  position: relative;
-  width: 174px;
-  height: 102px;
-  justify-self: end;
-  border: 1px solid rgba(255, 255, 255, 0.36);
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.24);
-}
-
-.friends-table-art::before {
-  content: "";
-  position: absolute;
-  left: 30px;
-  top: 20px;
-  width: 114px;
-  height: 62px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.22);
-}
-
-.friends-mini-card {
-  position: absolute;
-  width: 46px;
-  height: 64px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
-  border: 1px solid rgba(230, 215, 197, 0.8);
-  border-radius: 8px;
-  padding: 9px;
-  background: #fffffb;
-  color: #526b8d;
-  font-weight: 900;
-  box-shadow: 0 8px 18px rgba(60, 110, 95, 0.16);
-}
-
-.friends-card-one {
-  right: 118px;
-  top: 20px;
-  transform: rotate(-12deg);
-}
-
-.friends-card-two {
-  right: 72px;
-  top: 12px;
-  color: #c06b68;
-  transform: rotate(2deg);
-}
-
-.friends-card-three {
-  right: 26px;
-  top: 20px;
-  transform: rotate(13deg);
-}
-
 .friends-section-head {
   justify-content: space-between;
   gap: 14px;
@@ -2691,7 +2608,6 @@ button.playing-card.selectable:hover:not(:disabled) {
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(2, minmax(0, 1fr));
   gap: 18px;
 }
 
@@ -2699,6 +2615,11 @@ button.playing-card.selectable:hover:not(:disabled) {
   position: relative;
   min-width: 0;
   min-height: 150px;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 18px;
   border: 1px solid rgba(255, 255, 255, 0.84);
   border-radius: 8px;
   padding: 22px;
@@ -2707,21 +2628,7 @@ button.playing-card.selectable:hover:not(:disabled) {
   box-shadow: 0 12px 22px rgba(80, 108, 99, 0.08);
 }
 
-.friends-game-icon {
-  width: 58px;
-  height: 58px;
-  border-radius: 8px;
-  background: #eef9f3;
-  color: #4b826f;
-}
-
-.friends-game-card:nth-child(2n) .friends-game-icon {
-  background: #fff8ee;
-  color: #8a684a;
-}
-
 .friends-game-card h4 {
-  margin-top: 18px;
   font-size: 22px;
   line-height: 1.1;
 }
@@ -2904,7 +2811,6 @@ button.playing-card.selectable:hover:not(:disabled) {
     width: 100%;
   }
 
-  .friends-service,
   .friends-logout-button {
     justify-content: center;
   }
@@ -2931,25 +2837,13 @@ button.playing-card.selectable:hover:not(:disabled) {
   }
 
   .friends-center-panel {
-    grid-template-rows: auto auto auto;
-  }
-
-  .friends-welcome {
-    grid-template-columns: 1fr;
-  }
-
-  .friends-table-art {
-    justify-self: center;
+    grid-template-rows: auto auto;
   }
 }
 
 @media (max-width: 640px) {
   .friends-brand h1 {
     font-size: 22px;
-  }
-
-  .friends-welcome h2 {
-    font-size: 26px;
   }
 
   .friends-game-grid {
@@ -3990,6 +3884,18 @@ button.playing-card.selectable:hover:not(:disabled) {
   z-index: 1;
 }
 
+.hall-shooting-stars {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.hall-shooting-stars .login-star-stream {
+  filter: drop-shadow(0 0 10px rgba(116, 184, 255, 0.88));
+}
+
 .friends-hall-app::before {
   content: "";
   position: absolute;
@@ -4039,8 +3945,7 @@ button.playing-card.selectable:hover:not(:disabled) {
 }
 
 .friends-brand-logo,
-.friends-avatar,
-.friends-game-icon {
+.friends-avatar {
   background: rgba(15, 213, 195, 0.16);
   color: #6fffe3;
   box-shadow:
@@ -4071,7 +3976,6 @@ button.playing-card.selectable:hover:not(:disabled) {
 }
 
 .friends-profile-card h2,
-.friends-welcome h2,
 .friends-section-head h3,
 .friends-chat-card h3,
 .friends-game-card h4,
@@ -4080,7 +3984,6 @@ button.playing-card.selectable:hover:not(:disabled) {
   color: #f6fbff;
 }
 
-.friends-service,
 .friends-icon-button,
 .friends-logout-button,
 .friends-secondary-button,
@@ -4088,14 +3991,6 @@ button.playing-card.selectable:hover:not(:disabled) {
   border-color: rgba(139, 178, 217, 0.28);
   background: rgba(8, 21, 38, 0.72);
   color: rgba(226, 241, 255, 0.88);
-}
-
-.friends-service.online {
-  color: #57f0d4;
-}
-
-.friends-service.offline {
-  color: #ff7272;
 }
 
 .friends-icon-button:hover:not(:disabled),
@@ -4144,60 +4039,28 @@ button.playing-card.selectable:hover:not(:disabled) {
   color: #f4fbff;
 }
 
-.friends-welcome {
-  border: 1px solid rgba(111, 255, 227, 0.22);
-  background:
-    radial-gradient(circle at 82% 52%, rgba(111, 255, 227, 0.24), transparent 24%),
-    linear-gradient(135deg, rgba(13, 94, 102, 0.9), rgba(13, 33, 62, 0.78));
-  box-shadow:
-    0 18px 40px rgba(0, 0, 0, 0.24),
-    0 0 42px rgba(19, 213, 195, 0.12);
-}
-
-.friends-welcome h2 {
-  text-shadow:
-    0 0 14px rgba(162, 219, 255, 0.42),
-    0 10px 30px rgba(0, 0, 0, 0.4);
-}
-
-.friends-welcome p {
-  color: rgba(229, 245, 255, 0.88);
-}
-
-.friends-table-art {
-  border-color: rgba(111, 255, 227, 0.2);
-  background:
-    radial-gradient(ellipse at 50% 52%, rgba(18, 132, 122, 0.78), rgba(9, 52, 76, 0.72) 62%, rgba(255, 255, 255, 0.08) 64%);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 0 34px rgba(79, 236, 205, 0.18);
-}
-
-.friends-table-art::before {
-  background: rgba(80, 241, 216, 0.12);
-}
-
-.friends-mini-card {
-  width: 56px;
-  height: 78px;
-  display: block;
-  border: 0;
-  border-radius: 7px;
-  padding: 0;
-  background: transparent;
-  object-fit: fill;
-  box-shadow:
-    0 12px 24px rgba(0, 0, 0, 0.28),
-    0 0 18px rgba(202, 241, 255, 0.16);
-  user-select: none;
-}
-
 .friends-game-card {
   border-color: rgba(139, 178, 217, 0.2);
-  background: rgba(7, 20, 37, 0.58);
+  --game-card-bg: linear-gradient(transparent, transparent);
+  background:
+    linear-gradient(180deg, rgba(3, 9, 18, 0.08), rgba(3, 9, 18, 0.82)),
+    var(--game-card-bg),
+    rgba(7, 20, 37, 0.58);
+  background-position: center;
+  background-size: cover;
   box-shadow:
     0 16px 34px rgba(0, 0, 0, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.friends-game-card.game-zha_jin_hua {
+  --game-card-bg: url("/assets/pictures/ChatGPT Image 2026年5月28日 13_44_16_compressed.webp");
+}
+
+.friends-game-card.game-da_ban_zi {
+  --game-card-bg: url("/assets/pictures/LoginBG.837fa339.png");
+  background-size: cover, contain, cover;
+  background-repeat: no-repeat;
 }
 
 .friends-game-card::before {
@@ -4215,15 +4078,16 @@ button.playing-card.selectable:hover:not(:disabled) {
   opacity: 1;
 }
 
-.friends-game-icon,
-.friends-game-card:nth-child(2n) .friends-game-icon {
-  background: rgba(15, 213, 195, 0.12);
-  color: #6fffe3;
+.friends-game-card>* {
+  position: relative;
+  z-index: 1;
 }
 
-.friends-game-card:nth-child(2n) .friends-game-icon {
-  background: rgba(255, 209, 149, 0.12);
-  color: #ffd195;
+.friends-game-card h4 {
+  padding-right: 96px;
+  text-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.72),
+    0 0 18px rgba(162, 219, 255, 0.34);
 }
 
 .friends-game-card button {
@@ -4234,17 +4098,147 @@ button.playing-card.selectable:hover:not(:disabled) {
 .friends-game-card.selected {
   border-color: rgba(111, 255, 227, 0.5);
   background:
-    linear-gradient(180deg, rgba(12, 47, 69, 0.82), rgba(7, 20, 37, 0.7)),
+    linear-gradient(180deg, rgba(8, 44, 64, 0.22), rgba(3, 9, 18, 0.78)),
+    var(--game-card-bg),
     rgba(7, 20, 37, 0.72);
+  background-position: center;
+  background-size: cover;
   box-shadow:
     inset 0 0 0 1px rgba(111, 255, 227, 0.18),
     0 0 34px rgba(19, 213, 195, 0.16),
     0 18px 38px rgba(0, 0, 0, 0.2);
 }
 
+.friends-game-card.game-da_ban_zi.selected {
+  background-size: cover, contain, cover;
+  background-repeat: no-repeat;
+}
+
 .friends-game-card.selected button {
   background: rgba(19, 213, 195, 0.2);
   color: #a8fff0;
+}
+
+.hall-page.friends-hall .friends-topbar,
+.hall-page.friends-hall .friends-panel {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.hall-page.friends-hall .friends-profile-card,
+.hall-page.friends-hall .friends-room-card,
+.hall-page.friends-hall .friends-chat-card {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.hall-page.friends-hall .friends-game-card {
+  border-color: transparent;
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.18),
+    inset 0 -90px 90px rgba(3, 9, 18, 0.44);
+}
+
+.hall-page.friends-hall .friends-game-card.selected {
+  border-color: transparent;
+  box-shadow:
+    0 0 34px rgba(19, 213, 195, 0.2),
+    0 20px 44px rgba(0, 0, 0, 0.22),
+    inset 0 -90px 90px rgba(3, 9, 18, 0.38);
+}
+
+.hall-page.friends-hall,
+.hall-page.friends-hall button,
+.hall-page.friends-hall input,
+.hall-page.friends-hall select {
+  font-family: "STKaiti", "KaiTi", "Songti SC", "Noto Serif SC", serif;
+}
+
+.hall-page.friends-hall .friends-game-grid {
+  gap: 0;
+  overflow: hidden;
+  border-radius: 8px;
+  background: rgba(5, 16, 31, 0.52);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.18);
+}
+
+.hall-page.friends-hall .friends-game-card,
+.hall-page.friends-hall .friends-game-card.selected {
+  border-radius: 0;
+}
+
+.hall-page.friends-hall .friends-game-card {
+  box-shadow: inset 0 -90px 90px rgba(3, 9, 18, 0.44);
+}
+
+.hall-page.friends-hall .friends-game-card.selected {
+  box-shadow:
+    inset 0 0 0 1px rgba(111, 255, 227, 0.18),
+    inset 0 -90px 90px rgba(3, 9, 18, 0.38);
+}
+
+@media (min-width: 1181px) {
+  .hall-page.friends-hall {
+    height: 100dvh;
+    overflow-y: hidden;
+    padding-block: 16px;
+    padding-inline: clamp(18px, 2vw, 30px);
+  }
+
+  .friends-hall-app {
+    width: min(100%, 1720px);
+    min-height: calc(100dvh - 32px);
+    grid-template-rows: 72px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .friends-topbar {
+    padding-inline: 12px;
+  }
+
+  .friends-brand {
+    transform: translateX(-18px);
+  }
+
+  .friends-top-actions {
+    transform: translate(18px, -4px);
+  }
+
+  .friends-main {
+    grid-template-columns: 300px minmax(0, 1fr) 320px;
+    gap: clamp(28px, 3vw, 48px);
+  }
+
+  .friends-left-panel {
+    transform: translateX(-24px);
+  }
+
+  .friends-center-panel {
+    width: min(100%, 800px);
+    justify-self: center;
+    transform: translateY(-76px);
+  }
+
+  .friends-right-panel {
+    transform: translate(28px, -48px);
+  }
+
+  .friends-section-head,
+  .friends-game-grid {
+    width: min(100%, 760px);
+    margin-inline: auto;
+  }
+
+  .friends-game-grid {
+    gap: 0;
+  }
+
+  .friends-game-card {
+    min-height: 0;
+  }
 }
 
 .friends-chat-head span {
@@ -4300,6 +4294,7 @@ button.playing-card.selectable:hover:not(:disabled) {
 
 @media (prefers-reduced-motion: reduce) {
   .hall-page.friends-hall::before,
+  .hall-shooting-stars .login-star-stream,
   .friends-hall-app::after {
     animation: none;
   }
@@ -4329,15 +4324,6 @@ button.playing-card.selectable:hover:not(:disabled) {
 @media (max-width: 640px) {
   .friends-brand h1 {
     font-size: 24px;
-  }
-
-  .friends-welcome h2 {
-    font-size: 26px;
-  }
-
-  .friends-mini-card {
-    width: 50px;
-    height: 70px;
   }
 }
 

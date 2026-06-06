@@ -100,6 +100,9 @@ export function LoginPage({ initialAccount, isBusy, onLogin, onRegister, onInfo 
         <span className="login-moon" />
         <span className="login-star-stream stream-1" />
         <span className="login-star-stream stream-2" />
+        <span className="login-star-stream stream-3" />
+        <span className="login-star-stream stream-4" />
+        <span className="login-star-stream stream-5" />
       </div>
       <div className="floating-symbol symbol-1">♠</div>
       <div className="floating-symbol symbol-2">♥</div>
