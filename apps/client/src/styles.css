@@ -3538,6 +3538,7 @@ button.playing-card.selectable:hover:not(:disabled) {
 }
 
 .game-chat-toggle {
+  position: relative;
   min-height: 44px;
   display: inline-flex;
   align-items: center;
@@ -3563,6 +3564,27 @@ button.playing-card.selectable:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.14);
   font-size: 12px;
   font-weight: 850;
+}
+
+.game-chat-unread {
+  position: absolute;
+  right: -5px;
+  top: -7px;
+  min-width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #07131f;
+  border-radius: 999px;
+  padding: 0 5px;
+  background: #e21d2b;
+  color: #fff;
+  box-shadow: 0 6px 14px rgba(108, 0, 8, 0.34);
+  font-size: 11px;
+  font-weight: 1000;
+  line-height: 1;
+  pointer-events: none;
 }
 
 .game-chat-panel {

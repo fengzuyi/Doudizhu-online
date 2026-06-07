@@ -267,6 +267,7 @@ export default function App() {
   const [chatJoined, setChatJoined] = useState(false);
   const [chatDraft, setChatDraft] = useState("");
   const [gameChatOpen, setGameChatOpen] = useState(false);
+  const [gameChatUnreadCount, setGameChatUnreadCount] = useState(0);
   const [gameRecords, setGameRecords] = useState<GameSessionRecord[]>([]);
   const [gameRecordsOpen, setGameRecordsOpen] = useState(false);
   const [gameRecordsBusy, setGameRecordsBusy] = useState(false);
@@ -274,6 +275,9 @@ export default function App() {
   const roomRef = useRef<RoomView | null>(null);
   const zjhRoomRef = useRef<ZjhRoomView | null>(null);
   const daBanZiRoomRef = useRef<DaBanZiRoomView | null>(null);
+  const activeViewRef = useRef<ActiveView>(activeView);
+  const gameChatOpenRef = useRef(gameChatOpen);
+  const authAccountRef = useRef(authProfile?.account ?? "");
   const suppressRoomStateRef = useRef(false);
   const suppressZjhRoomStateRef = useRef(false);
   const suppressDaBanZiRoomStateRef = useRef(false);
@@ -338,6 +342,7 @@ export default function App() {
     setChatJoined(false);
     setChatDraft("");
     setGameChatOpen(false);
+    setGameChatUnreadCount(0);
     setGameRecords([]);
     setGameRecordsOpen(false);
     setGameRecordsBusy(false);
@@ -382,6 +387,24 @@ export default function App() {
   useEffect(() => {
     daBanZiRoomRef.current = daBanZiRoom;
   }, [daBanZiRoom]);
+
+  useEffect(() => {
+    activeViewRef.current = activeView;
+    if (activeView === "hall" || activeView === "login") {
+      setGameChatUnreadCount(0);
+    }
+  }, [activeView]);
+
+  useEffect(() => {
+    gameChatOpenRef.current = gameChatOpen;
+    if (gameChatOpen) {
+      setGameChatUnreadCount(0);
+    }
+  }, [gameChatOpen]);
+
+  useEffect(() => {
+    authAccountRef.current = authProfile?.account ?? "";
+  }, [authProfile?.account]);
 
   useEffect(() => {
     function onConnect() {
@@ -503,6 +526,14 @@ export default function App() {
 
     function onChatMessage({ message }: { message: ChatMessage }) {
       setChatMessages((current) => [...current, message].slice(-50));
+      if (
+        !gameChatOpenRef.current &&
+        activeViewRef.current !== "hall" &&
+        activeViewRef.current !== "login" &&
+        message.account !== authAccountRef.current
+      ) {
+        setGameChatUnreadCount((count) => Math.min(count + 1, 99));
+      }
     }
 
     function onChatError({ code, message }: { code: string; message: string }) {
@@ -961,6 +992,10 @@ export default function App() {
     setChatDraft("");
   }
 
+  function toggleGameChat() {
+    setGameChatOpen((current) => !current);
+  }
+
   function toggleGameRecords() {
     setGameRecordsOpen((current) => {
       const next = !current;
@@ -1072,6 +1107,7 @@ export default function App() {
         {leaveConfirmOpen && <LeaveConfirmDialog onCancel={() => setLeaveConfirmOpen(false)} onConfirm={leaveRoom} />}
         <GameChatDock
           open={gameChatOpen}
+          unreadCount={gameChatUnreadCount}
           messages={chatMessages}
           onlineCount={chatOnlineCount}
           joined={chatJoined}
@@ -1080,7 +1116,7 @@ export default function App() {
           draft={chatDraft}
           onDraftChange={setChatDraft}
           onSend={sendChatMessage}
-          onToggle={() => setGameChatOpen((current) => !current)}
+          onToggle={toggleGameChat}
         />
         <Toast message={toast} />
       </div>
@@ -1119,6 +1155,7 @@ export default function App() {
         {leaveConfirmOpen && <LeaveConfirmDialog onCancel={() => setLeaveConfirmOpen(false)} onConfirm={leaveRoom} />}
         <GameChatDock
           open={gameChatOpen}
+          unreadCount={gameChatUnreadCount}
           messages={chatMessages}
           onlineCount={chatOnlineCount}
           joined={chatJoined}
@@ -1127,7 +1164,7 @@ export default function App() {
           draft={chatDraft}
           onDraftChange={setChatDraft}
           onSend={sendChatMessage}
-          onToggle={() => setGameChatOpen((current) => !current)}
+          onToggle={toggleGameChat}
         />
         <Toast message={toast} />
       </div>
@@ -1291,6 +1328,7 @@ export default function App() {
       {leaveConfirmOpen && <LeaveConfirmDialog onCancel={() => setLeaveConfirmOpen(false)} onConfirm={leaveRoom} />}
       <GameChatDock
         open={gameChatOpen}
+        unreadCount={gameChatUnreadCount}
         messages={chatMessages}
         onlineCount={chatOnlineCount}
         joined={chatJoined}
@@ -1299,7 +1337,7 @@ export default function App() {
         draft={chatDraft}
         onDraftChange={setChatDraft}
         onSend={sendChatMessage}
-        onToggle={() => setGameChatOpen((current) => !current)}
+        onToggle={toggleGameChat}
       />
       <Toast message={toast} />
     </div>
@@ -1562,6 +1600,7 @@ function LeaveConfirmDialog({ onCancel, onConfirm }: { onCancel: () => void; onC
 
 function GameChatDock({
   open,
+  unreadCount,
   messages,
   onlineCount,
   joined,
@@ -1573,6 +1612,7 @@ function GameChatDock({
   onToggle
 }: {
   open: boolean;
+  unreadCount: number;
   messages: ChatMessage[];
   onlineCount: number;
   joined: boolean;
@@ -1613,6 +1653,11 @@ function GameChatDock({
         <Send size={18} aria-hidden="true" />
         大厅聊天
         <span>{joined ? `${onlineCount}人` : "连接中"}</span>
+        {unreadCount > 0 && (
+          <b className="game-chat-unread" aria-label={`${unreadCount} 条未读消息`}>
+            {unreadCount}
+          </b>
+        )}
       </button>
       {open && (
         <section className="game-chat-panel">
