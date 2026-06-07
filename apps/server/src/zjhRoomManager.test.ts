@@ -80,6 +80,37 @@ describe("ZjhRoomManager", () => {
     expect(room.result?.pot).toBe(3);
   });
 
+  it("keeps settlement visible until every connected player readies", () => {
+    const { manager, room } = prepareRoom(() => 0);
+
+    manager.call("s1");
+    manager.fold("s2");
+
+    const settledResult = room.result;
+    expect(room.phase).toBe("ended");
+    expect(settledResult?.hands).toHaveLength(2);
+
+    manager.ready("s1");
+
+    expect(room.phase).toBe("ended");
+    expect(room.result).toBe(settledResult);
+    expect(room.players[0]?.ready).toBe(true);
+    expect(room.players[1]?.ready).toBe(false);
+
+    const waitingView = manager.buildViews(room).find((view) => view.socketId === "s1")?.roomView;
+    expect(waitingView?.phase).toBe("ended");
+    expect(waitingView?.result).toBe(settledResult);
+    expect(waitingView?.players.find((player) => player.seat === 0)?.hand).toHaveLength(3);
+    expect(waitingView?.players.find((player) => player.seat === 1)?.hand).toHaveLength(3);
+
+    manager.ready("s2");
+
+    expect(room.phase).toBe("playing");
+    expect(room.result).toBeUndefined();
+    expect(room.players[0]?.ready).toBe(false);
+    expect(room.players[1]?.ready).toBe(false);
+  });
+
   it("supports raise and compare settlement", () => {
     const { manager, room } = prepareRoom(() => 0);
 

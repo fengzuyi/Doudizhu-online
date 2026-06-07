@@ -211,6 +211,7 @@ export function ZhaJinHuaTable({
   const [musicVolume, setMusicVolume] = useState(0.35);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [soundVolume, setSoundVolume] = useState(0.75);
+  const [promoRailsEnabled, setPromoRailsEnabled] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -488,8 +489,12 @@ export function ZhaJinHuaTable({
 
       {!connected && <div className="zen-offline-banner">连接已断开，请刷新后重新进入房间。</div>}
 
-      <ZjhPromoRail side="left" promos={ZJH_LEFT_PROMOS} />
-      <ZjhPromoRail side="right" promos={ZJH_RIGHT_PROMOS} />
+      {promoRailsEnabled && (
+        <>
+          <ZjhPromoRail side="left" promos={ZJH_LEFT_PROMOS} />
+          <ZjhPromoRail side="right" promos={ZJH_RIGHT_PROMOS} />
+        </>
+      )}
 
       <main className="zjh-main">
         <section className="zjh-table" aria-label="炸金花牌桌">
@@ -524,7 +529,7 @@ export function ZhaJinHuaTable({
               </span>
               <strong>{room.pot}</strong>
             </div>
-            {room.phase !== "lobby" && (
+            {room.phase === "playing" && (
               <div className="zjh-message">
                 <Sparkles size={18} aria-hidden="true" />
                 {tableMessage ?? "等待玩家操作"}
@@ -556,10 +561,12 @@ export function ZhaJinHuaTable({
           musicVolume={musicVolume}
           soundEnabled={soundEnabled}
           soundVolume={soundVolume}
+          promoRailsEnabled={promoRailsEnabled}
           onMusicEnabledChange={setMusicEnabled}
           onMusicVolumeChange={setMusicVolume}
           onSoundEnabledChange={setSoundEnabled}
           onSoundVolumeChange={setSoundVolume}
+          onPromoRailsEnabledChange={setPromoRailsEnabled}
           onClose={() => setSettingsOpen(false)}
         />
       )}
@@ -585,20 +592,24 @@ function ZjhSettingsDialog({
   musicVolume,
   soundEnabled,
   soundVolume,
+  promoRailsEnabled,
   onMusicEnabledChange,
   onMusicVolumeChange,
   onSoundEnabledChange,
   onSoundVolumeChange,
+  onPromoRailsEnabledChange,
   onClose
 }: {
   musicEnabled: boolean;
   musicVolume: number;
   soundEnabled: boolean;
   soundVolume: number;
+  promoRailsEnabled: boolean;
   onMusicEnabledChange: (enabled: boolean) => void;
   onMusicVolumeChange: (volume: number) => void;
   onSoundEnabledChange: (enabled: boolean) => void;
   onSoundVolumeChange: (volume: number) => void;
+  onPromoRailsEnabledChange: (enabled: boolean) => void;
   onClose: () => void;
 }) {
   const volumePercent = Math.round(musicVolume * 100);
@@ -669,6 +680,21 @@ function ZjhSettingsDialog({
             onChange={(event) => onSoundVolumeChange(Number(event.target.value) / 100)}
           />
         </label>
+
+        <div className="zjh-setting-row">
+          <div>
+            <strong>两侧动图</strong>
+            <span>{promoRailsEnabled ? "已显示" : "已隐藏"}</span>
+          </div>
+          <button
+            className={`zjh-toggle-button ${promoRailsEnabled ? "is-stop" : "is-start"}`}
+            type="button"
+            onClick={() => onPromoRailsEnabledChange(!promoRailsEnabled)}
+            aria-pressed={promoRailsEnabled}
+          >
+            {promoRailsEnabled ? "隐藏" : "显示"}
+          </button>
+        </div>
       </section>
     </div>
   );
@@ -719,9 +745,9 @@ function ZjhActionBar({
   if (room.phase === "ended") {
     return (
       <div className="zjh-actions zjh-ended-actions">
-        <button className="primary-btn" type="button" onClick={onReady}>
+        <button className="primary-btn" type="button" onClick={onReady} disabled={self?.ready}>
           <Play size={18} aria-hidden="true" />
-          再来一局
+          {self?.ready ? "已准备" : "再来一局"}
         </button>
       </div>
     );
@@ -779,16 +805,6 @@ function ZjhActionBar({
         <Shield size={18} aria-hidden="true" />
         跟注
       </button>
-      <button
-        type="button"
-        onClick={() => {
-          onCancelCompare();
-          onFold();
-        }}
-      >
-        <CircleSlash size={18} aria-hidden="true" />
-        弃牌
-      </button>
       <div className="zjh-raise-group" aria-label="加注">
         <button
           type="button"
@@ -834,6 +850,17 @@ function ZjhActionBar({
       >
         <Swords size={17} aria-hidden="true" />
         比牌
+      </button>
+      <button
+        className="zjh-fold-button"
+        type="button"
+        onClick={() => {
+          onCancelCompare();
+          onFold();
+        }}
+      >
+        <CircleSlash size={18} aria-hidden="true" />
+        弃牌
       </button>
     </div>
   );
@@ -890,7 +917,7 @@ function ZjhSeat({
   onCompareTarget: () => void;
   style: ZjhOrbitStyle;
 }) {
-  const showReady = phase === "lobby";
+  const showReady = phase === "lobby" || phase === "ended";
   const showSeen = phase !== "lobby";
   const seatLeft = Number.parseFloat(style["--seat-left"]);
   const seatTop = Number.parseFloat(style["--seat-top"]);

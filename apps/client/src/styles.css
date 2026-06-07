@@ -6316,6 +6316,20 @@ button.zjh-avatar-frame:disabled {
   background: rgba(255, 255, 255, 0.1);
 }
 
+.zjh-actions button.zjh-fold-button {
+  color: #fff7f4;
+  border-color: rgba(255, 122, 103, 0.48);
+  background: linear-gradient(180deg, #f05a46, #b51f28);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 10px 20px rgba(143, 24, 31, 0.3);
+}
+
+.zjh-actions button.zjh-fold-button:hover:not(:disabled) {
+  border-color: rgba(255, 190, 178, 0.72);
+  background: linear-gradient(180deg, #ff6a55, #c6232d);
+}
+
 .zjh-actions button.is-active {
   color: #1c1300;
   border-color: rgba(255, 216, 107, 0.74);

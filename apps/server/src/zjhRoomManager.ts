@@ -173,29 +173,32 @@ export class ZjhRoomManager {
     const room = this.requireRoomForSocket(socketId);
     const player = this.requirePlayer(room, socketId);
 
-    if (room.phase === "ended") {
-      this.resetToLobby(room);
-    }
-
-    if (room.phase !== "lobby") {
+    if (room.phase !== "lobby" && room.phase !== "ended") {
       throw new GameException("NOT_LOBBY", "当前阶段不能准备。");
     }
 
-    player.ready = true;
-    player.lastAction = "已准备";
-    this.pushLog(room, {
-      seat: player.seat,
-      nickname: player.nickname,
-      action: "ready",
-      label: "准备"
-    });
+    if (!player.ready) {
+      player.ready = true;
+      player.lastAction = "已准备";
+      this.pushLog(room, {
+        seat: player.seat,
+        nickname: player.nickname,
+        action: "ready",
+        label: "准备"
+      });
+    }
     this.touch(room);
 
-    const players = this.seatedPlayers(room);
+    const players = this.connectedPlayers(room);
     if (players.length >= MIN_PLAYERS && players.every((candidate) => candidate.ready)) {
       this.startRound(room);
     } else {
-      room.message = players.length < MIN_PLAYERS ? "至少 2 名玩家准备后开始。" : "等待其他玩家准备。";
+      room.message =
+        players.length < MIN_PLAYERS
+          ? "至少 2 名玩家准备后开始。"
+          : room.phase === "ended"
+            ? "等待其他玩家准备，结算会保留到全员准备。"
+            : "等待其他玩家准备。";
     }
 
     return room;
@@ -397,6 +400,9 @@ export class ZjhRoomManager {
   }
 
   private startRound(room: ZjhInternalRoom) {
+    room.players = room.players.map((player) => (player?.connected ? player : null));
+    this.syncPlayerCount(room);
+
     const players = this.seatedPlayers(room);
     if (players.length < MIN_PLAYERS) {
       throw new GameException("NOT_ENOUGH_PLAYERS", "至少 2 名玩家才能开始炸金花。");
@@ -555,35 +561,6 @@ export class ZjhRoomManager {
     };
   }
 
-  private resetToLobby(room: ZjhInternalRoom) {
-    room.phase = "lobby";
-    room.bankerSeat = undefined;
-    room.currentTurn = undefined;
-    room.pot = 0;
-    room.currentBet = BASE_ANTE;
-    room.round = 0;
-    room.turnCounter = 0;
-    room.result = undefined;
-    room.endedAt = undefined;
-    room.turnLog = [];
-    room.message = "上一局已结束，准备后可再来一局。";
-
-    room.players = room.players.map((player) => {
-      if (!player?.connected) {
-        return null;
-      }
-      player.ready = false;
-      player.hand = [];
-      player.seen = false;
-      player.folded = false;
-      player.invested = 0;
-      player.lastAction = undefined;
-      return player;
-    });
-    this.syncPlayerCount(room);
-    this.touch(room);
-  }
-
   private requireTurn(socketId: string) {
     const room = this.requireRoomForSocket(socketId);
     const player = this.requirePlayer(room, socketId);
@@ -636,6 +613,10 @@ export class ZjhRoomManager {
 
   private activePlayers(room: ZjhInternalRoom) {
     return this.seatedPlayers(room).filter((player) => player.connected && !player.folded);
+  }
+
+  private connectedPlayers(room: ZjhInternalRoom) {
+    return this.seatedPlayers(room).filter((player) => player.connected);
   }
 
   private seatedPlayers(room: ZjhInternalRoom) {
