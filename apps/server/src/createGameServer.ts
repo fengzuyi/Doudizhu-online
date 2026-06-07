@@ -994,7 +994,7 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       }
     });
 
-    socket.on("room:create", (payload) => {
+    socket.on("room:create", () => {
       try {
         const auth = requireSocketAuth(socket.id);
         const room = roomManager.createRoom(socket.id, auth.nickname);
@@ -1344,7 +1344,7 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       }
     });
 
-    socket.on("dbz:room:create", (payload) => {
+    socket.on("dbz:room:create", () => {
       try {
         const auth = requireSocketAuth(socket.id);
         const room = daBanZiRoomManager.createRoom(socket.id, auth.nickname);

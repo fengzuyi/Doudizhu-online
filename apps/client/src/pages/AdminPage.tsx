@@ -7,7 +7,6 @@ import {
   Search,
   ShieldCheck,
   Trash2,
-  UserMinus,
   UserX
 } from "lucide-react";
 import type { ChatMessage } from "@doudizhu/shared";
