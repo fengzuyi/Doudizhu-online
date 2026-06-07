@@ -21,6 +21,7 @@ import {
   Room as LiveKitRoom,
   RoomEvent,
   Track,
+  ParticipantEvent,
   type Participant,
   type RemoteParticipant,
   type RemoteTrack,
@@ -1663,6 +1664,7 @@ const VOICE_AUDIO_OPTIONS = {
   noiseSuppression: true,
   autoGainControl: true
 };
+const VOICE_INPUT_HOLD_MS = 360;
 
 type VoiceStatus = "idle" | "connecting" | "connected" | "reconnecting" | "error";
 
@@ -1681,18 +1683,14 @@ function GameVoiceDock({
 }) {
   const audioContainerRef = useRef<HTMLDivElement | null>(null);
   const voiceRoomRef = useRef<LiveKitRoom | null>(null);
+  const voiceInputTimerRef = useRef<number | undefined>(undefined);
+  const cleanupLocalSpeakingListenerRef = useRef<(() => void) | null>(null);
   const [status, setStatus] = useState<VoiceStatus>("idle");
   const [busy, setBusy] = useState(false);
   const [micEnabled, setMicEnabled] = useState(false);
-  const [participantCount, setParticipantCount] = useState(0);
-  const [activeSpeakerLabel, setActiveSpeakerLabel] = useState("");
-  const [errorText, setErrorText] = useState("");
+  const [voiceInputActive, setVoiceInputActive] = useState(false);
 
   const joined = status === "connected" || status === "reconnecting";
-
-  function updateParticipantCount(room: LiveKitRoom) {
-    setParticipantCount(room.remoteParticipants.size + 1);
-  }
 
   function attachRemoteAudio(track: RemoteTrack, participant: RemoteParticipant) {
     if (track.kind !== Track.Kind.Audio) {
@@ -1701,6 +1699,9 @@ function GameVoiceDock({
 
     const element = track.attach();
     element.autoplay = true;
+    element.muted = false;
+    element.volume = 1;
+    element.setAttribute("playsinline", "true");
     element.dataset.participantIdentity = participant.identity;
     element.style.display = "none";
     audioContainerRef.current?.appendChild(element);
@@ -1717,15 +1718,68 @@ function GameVoiceDock({
     }
   }
 
+  function clearVoiceInputTimer() {
+    if (voiceInputTimerRef.current === undefined) {
+      return;
+    }
+
+    window.clearTimeout(voiceInputTimerRef.current);
+    voiceInputTimerRef.current = undefined;
+  }
+
+  function holdVoiceInput() {
+    clearVoiceInputTimer();
+    setVoiceInputActive(true);
+    voiceInputTimerRef.current = window.setTimeout(() => {
+      voiceInputTimerRef.current = undefined;
+      setVoiceInputActive(false);
+    }, VOICE_INPUT_HOLD_MS);
+  }
+
+  function fadeVoiceInput() {
+    clearVoiceInputTimer();
+    voiceInputTimerRef.current = window.setTimeout(() => {
+      voiceInputTimerRef.current = undefined;
+      setVoiceInputActive(false);
+    }, VOICE_INPUT_HOLD_MS);
+  }
+
+  function clearVoiceInputState() {
+    clearVoiceInputTimer();
+    setVoiceInputActive(false);
+  }
+
+  function stopLocalSpeakingListener() {
+    cleanupLocalSpeakingListenerRef.current?.();
+    cleanupLocalSpeakingListenerRef.current = null;
+  }
+
+  function startLocalSpeakingListener(room: LiveKitRoom) {
+    stopLocalSpeakingListener();
+    const participant = room.localParticipant;
+    const handleSpeakingChanged = (speaking: boolean) => {
+      if (speaking) {
+        holdVoiceInput();
+      } else {
+        fadeVoiceInput();
+      }
+    };
+
+    participant.on(ParticipantEvent.IsSpeakingChanged, handleSpeakingChanged);
+    cleanupLocalSpeakingListenerRef.current = () => {
+      participant.off(ParticipantEvent.IsSpeakingChanged, handleSpeakingChanged);
+    };
+  }
+
   function resetVoiceState(nextStatus: VoiceStatus = "idle") {
+    stopLocalSpeakingListener();
+    clearVoiceInputState();
     voiceRoomRef.current?.removeAllListeners();
     voiceRoomRef.current?.disconnect();
     voiceRoomRef.current = null;
     audioContainerRef.current?.replaceChildren();
     setStatus(nextStatus);
     setMicEnabled(false);
-    setParticipantCount(0);
-    setActiveSpeakerLabel("");
   }
 
   useEffect(() => {
@@ -1744,9 +1798,15 @@ function GameVoiceDock({
 
     setBusy(true);
     setStatus("connecting");
-    setErrorText("");
 
-    let livekitRoom: LiveKitRoom | undefined;
+    const livekitRoom = new LiveKitRoom({
+      adaptiveStream: false,
+      dynacast: false,
+      audioCaptureDefaults: VOICE_AUDIO_OPTIONS
+    });
+    voiceRoomRef.current = livekitRoom;
+    void livekitRoom.startAudio().catch(() => undefined);
+
     try {
       const credentials = await requestJson<VoiceTokenResponse>("/api/voice/token", {
         method: "POST",
@@ -1754,39 +1814,59 @@ function GameVoiceDock({
         body: JSON.stringify({ gameKind, roomCode })
       });
 
-      livekitRoom = new LiveKitRoom({
-        adaptiveStream: false,
-        dynacast: false,
-        audioCaptureDefaults: VOICE_AUDIO_OPTIONS
-      });
-
       livekitRoom
         .on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _publication: RemoteTrackPublication, participant: RemoteParticipant) => {
           attachRemoteAudio(track, participant);
+          void livekitRoom.startAudio().catch(() => undefined);
         })
         .on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
           track.detach().forEach((element) => element.remove());
         })
-        .on(RoomEvent.ParticipantConnected, () => updateParticipantCount(livekitRoom!))
-        .on(RoomEvent.ParticipantDisconnected, () => updateParticipantCount(livekitRoom!))
+        .on(RoomEvent.AudioPlaybackStatusChanged, (canPlayback: boolean) => {
+          if (!canPlayback) {
+            onInfo("浏览器阻止了语音播放，请再次点击语音按钮或开启麦克风以解锁声音。");
+          }
+        })
         .on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
-          setActiveSpeakerLabel(formatActiveSpeakers(speakers));
+          if (speakers.some((speaker) => speaker.identity === livekitRoom?.localParticipant.identity)) {
+            holdVoiceInput();
+          } else {
+            fadeVoiceInput();
+          }
         })
         .on(RoomEvent.Reconnecting, () => setStatus("reconnecting"))
         .on(RoomEvent.Reconnected, () => setStatus("connected"))
         .on(RoomEvent.Disconnected, () => resetVoiceState())
         .on(RoomEvent.MediaDevicesError, () => {
           const message = "麦克风不可用，请检查浏览器权限或设备。";
-          setErrorText(message);
+          clearVoiceInputState();
+          setMicEnabled(false);
           onInfo(message);
         });
 
-      voiceRoomRef.current = livekitRoom;
+      startLocalSpeakingListener(livekitRoom);
       await livekitRoom.connect(credentials.url, credentials.token);
       attachExistingRemoteAudio(livekitRoom);
-      updateParticipantCount(livekitRoom);
+      void livekitRoom.startAudio().catch(() => undefined);
+
+      let microphoneStarted = false;
+      if (!window.isSecureContext) {
+        onInfo("当前页面不是安全环境，浏览器会禁止麦克风。请用 localhost 或 HTTPS 打开游戏。");
+      } else {
+        try {
+          await livekitRoom.localParticipant.setMicrophoneEnabled(true, VOICE_AUDIO_OPTIONS);
+          setMicEnabled(true);
+          microphoneStarted = true;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "麦克风开启失败，请检查浏览器权限。";
+          clearVoiceInputState();
+          setMicEnabled(false);
+          onInfo(message);
+        }
+      }
+
       setStatus("connected");
-      onInfo("已加入房间语音。");
+      onInfo(microphoneStarted ? "已加入房间语音，麦克风已开启。" : "已加入房间语音，但麦克风未开启。");
     } catch (error) {
       livekitRoom?.removeAllListeners();
       livekitRoom?.disconnect();
@@ -1794,11 +1874,11 @@ function GameVoiceDock({
         voiceRoomRef.current = null;
       }
       audioContainerRef.current?.replaceChildren();
+      stopLocalSpeakingListener();
+      clearVoiceInputState();
       const message = error instanceof Error ? error.message : "加入语音失败，请稍后再试。";
-      setErrorText(message);
       setStatus("error");
       setMicEnabled(false);
-      setParticipantCount(0);
       onInfo(message);
     } finally {
       setBusy(false);
@@ -1810,46 +1890,51 @@ function GameVoiceDock({
     if (!room || busy) {
       return;
     }
+    if (!window.isSecureContext) {
+      onInfo("当前页面不是安全环境，浏览器会禁止麦克风。请用 localhost 或 HTTPS 打开游戏。");
+      return;
+    }
 
     const nextEnabled = !micEnabled;
     setBusy(true);
-    setErrorText("");
     try {
+      void room.startAudio().catch(() => undefined);
       await room.localParticipant.setMicrophoneEnabled(nextEnabled, VOICE_AUDIO_OPTIONS);
       setMicEnabled(nextEnabled);
+      if (!nextEnabled) {
+        clearVoiceInputState();
+      }
     } catch (error) {
+      if (nextEnabled) {
+        setMicEnabled(false);
+      }
+      clearVoiceInputState();
       const message = error instanceof Error ? error.message : "麦克风切换失败，请检查浏览器权限。";
-      setErrorText(message);
       onInfo(message);
     } finally {
       setBusy(false);
     }
   }
 
-  const statusLabel =
-    status === "connecting"
-      ? "正在连接"
-      : status === "reconnecting"
-        ? "正在重连"
-        : status === "connected"
-          ? activeSpeakerLabel || `${participantCount} 人在线`
-          : status === "error"
-            ? errorText || "语音不可用"
-            : "房间实时语音";
-
   return (
-    <aside className={`game-voice-dock ${joined ? "joined" : ""} ${micEnabled ? "speaking" : ""}`} aria-label="房间语音">
+    <aside
+      className={`game-voice-dock ${joined ? "joined" : ""} ${micEnabled ? "mic-enabled" : ""} ${
+        voiceInputActive ? "voice-input-active" : micEnabled ? "voice-input-idle" : ""
+      }`}
+      aria-label="房间语音"
+    >
       <div className="game-voice-card">
         {!joined ? (
           <button className="game-voice-main" type="button" onClick={connectVoice} disabled={busy || !connected}>
             <Mic size={16} aria-hidden="true" />
             <span>加入语音</span>
-            <small>{statusLabel}</small>
           </button>
         ) : (
           <>
             <button
-              className={`game-voice-main ${micEnabled ? "mic-on" : ""}`}
+              className={`game-voice-main ${micEnabled ? "mic-on" : ""} ${
+                voiceInputActive ? "voice-active" : micEnabled ? "voice-idle" : ""
+              }`}
               type="button"
               onClick={toggleMicrophone}
               disabled={busy}
@@ -1857,7 +1942,6 @@ function GameVoiceDock({
             >
               {micEnabled ? <Mic size={18} aria-hidden="true" /> : <MicOff size={18} aria-hidden="true" />}
               <span>{micEnabled ? "麦克风已开" : "麦克风已关"}</span>
-              <small>{statusLabel}</small>
             </button>
             <button className="game-voice-icon" type="button" onClick={() => resetVoiceState()} aria-label="退出语音">
               <PhoneOff size={18} aria-hidden="true" />
@@ -1868,19 +1952,6 @@ function GameVoiceDock({
       <div ref={audioContainerRef} className="game-voice-audio" aria-hidden="true" />
     </aside>
   );
-}
-
-function formatActiveSpeakers(speakers: Participant[]) {
-  const names = speakers
-    .map((speaker) => speaker.name || speaker.identity)
-    .filter(Boolean)
-    .slice(0, 2);
-
-  if (names.length === 0) {
-    return "";
-  }
-
-  return names.length === 1 ? `${names[0]} 正在说话` : `${names.join("、")} 正在说话`;
 }
 
 function formatChatTime(timestamp: number) {
