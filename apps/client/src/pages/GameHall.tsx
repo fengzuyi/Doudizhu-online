@@ -1,15 +1,17 @@
 import {
   Bell,
+  History,
   KeyRound,
   LogOut,
   Plus,
+  RotateCw,
   Send,
   Settings,
   Sparkles,
   UserRound
 } from "lucide-react";
 import { type FormEvent, useEffect, useRef } from "react";
-import type { ChatMessage, GameKind } from "@doudizhu/shared";
+import type { ChatMessage, GameKind, GameSessionRecord } from "@doudizhu/shared";
 import type { AuthProfile } from "./LoginPage.js";
 
 interface GameHallProps {
@@ -32,6 +34,12 @@ interface GameHallProps {
   chatDraft: string;
   onChatDraftChange: (value: string) => void;
   onSendChat: () => void;
+  gameRecords: GameSessionRecord[];
+  gameRecordsOpen: boolean;
+  gameRecordsBusy: boolean;
+  gameRecordsError: string;
+  onToggleGameRecords: () => void;
+  onRefreshGameRecords: () => void;
 }
 
 const games = [
@@ -82,7 +90,13 @@ export function GameHall({
   chatJoined,
   chatDraft,
   onChatDraftChange,
-  onSendChat
+  onSendChat,
+  gameRecords,
+  gameRecordsOpen,
+  gameRecordsBusy,
+  gameRecordsError,
+  onToggleGameRecords,
+  onRefreshGameRecords
 }: GameHallProps) {
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const currentGameName = selectedGameName[selectedGame];
@@ -131,6 +145,60 @@ export function GameHall({
           </div>
 
           <div className="friends-top-actions">
+            <div className="friends-record-wrap">
+              <button
+                className="friends-icon-button"
+                type="button"
+                onClick={onToggleGameRecords}
+                aria-label="游戏记录"
+                aria-expanded={gameRecordsOpen}
+              >
+                <History size={18} aria-hidden="true" />
+              </button>
+              {gameRecordsOpen && (
+                <section className="friends-record-popover" aria-label="游戏记录">
+                  <div className="friends-record-head">
+                    <div>
+                      <h3>游戏记录</h3>
+                      <span>{gameRecords.length} 条</span>
+                    </div>
+                    <button
+                      className="friends-record-refresh"
+                      type="button"
+                      onClick={onRefreshGameRecords}
+                      disabled={gameRecordsBusy}
+                      aria-label="刷新游戏记录"
+                    >
+                      <RotateCw size={16} aria-hidden="true" />
+                    </button>
+                  </div>
+                  <div className="friends-record-list">
+                    {gameRecordsBusy && gameRecords.length === 0 ? (
+                      <p className="friends-record-empty">正在读取记录...</p>
+                    ) : gameRecordsError ? (
+                      <p className="friends-record-empty">{gameRecordsError}</p>
+                    ) : gameRecords.length > 0 ? (
+                      gameRecords.map((record) => (
+                        <article className="friends-record-item" key={record.id}>
+                          <div>
+                            <strong>{record.gameName}</strong>
+                            <span>
+                              房间 {record.roomCode}
+                              {record.seat !== undefined ? ` · ${record.seat + 1}号位` : ""}
+                            </span>
+                          </div>
+                          <time>{formatRecordTime(record.leftAt)}</time>
+                          <p>{record.resultLabel ?? record.phase}</p>
+                          <b>{record.scoreLabel}</b>
+                        </article>
+                      ))
+                    ) : (
+                      <p className="friends-record-empty">暂无游戏记录</p>
+                    )}
+                  </div>
+                </section>
+              )}
+            </div>
             <button className="friends-icon-button" type="button" onClick={() => onInfo("通知中心将在正式版开放。")} aria-label="通知">
               <Bell size={18} aria-hidden="true" />
             </button>
@@ -270,6 +338,15 @@ export function GameHall({
 
 function formatChatTime(timestamp: number) {
   return new Date(timestamp).toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function formatRecordTime(timestamp: number) {
+  return new Date(timestamp).toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
     hour: "2-digit",
     minute: "2-digit"
   });

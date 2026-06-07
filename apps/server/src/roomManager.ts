@@ -24,6 +24,8 @@ interface InternalPlayer {
   socketId: string;
   nickname: string;
   seat: PlayerSeat;
+  joinedAt: number;
+  score: number;
   connected: boolean;
   ready: boolean;
   hand: Card[];
@@ -491,6 +493,8 @@ export class RoomManager {
       socketId,
       nickname,
       seat,
+      joinedAt: Date.now(),
+      score: 0,
       connected: true,
       ready: false,
       hand: []
@@ -657,6 +661,11 @@ export class RoomManager {
     }
 
     const result = calculateRoundResult(room.landlordSeat, winnerSeat, room.multiplier);
+    for (const player of room.players) {
+      if (player) {
+        player.score += result.scores[player.seat];
+      }
+    }
     room.phase = "ended";
     room.endedAt = Date.now();
     room.currentTurn = undefined;

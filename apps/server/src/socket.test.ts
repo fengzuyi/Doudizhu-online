@@ -9,6 +9,7 @@ import type {
   ClientToServerEvents,
   DaBanZiRoomView,
   GameError,
+  GameSessionRecord,
   PlayerSeat,
   RoomView,
   ServerToClientEvents,
@@ -161,6 +162,27 @@ async function bindRegisteredAccount(baseUrl: string, socket: ClientSocket, acco
   socket.emit("chat:join", { token: registered.token });
   await joined;
   return registered;
+}
+
+async function waitForGameRecords(baseUrl: string, token: string, minimumCount = 1): Promise<GameSessionRecord[]> {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < 1200) {
+    const response = await fetch(`${baseUrl}/api/game-records`, {
+      headers: { authorization: `Bearer ${token}` }
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch game records: ${response.status}`);
+    }
+
+    const body = (await response.json()) as { records: GameSessionRecord[] };
+    if (body.records.length >= minimumCount) {
+      return body.records;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+
+  throw new Error("Timed out waiting for game records.");
 }
 
 describe("socket game flow", () => {
@@ -492,6 +514,34 @@ describe("socket game flow", () => {
         process.env.LIVEKIT_API_SECRET = previousLiveKitApiSecret;
       }
     }
+  });
+
+  it("records a game session when a player leaves a room", async () => {
+    const client = await connectClient(baseUrl);
+    clients = [client];
+    const account = await bindRegisteredAccount(baseUrl, client, "record-alpha", "Record Alpha");
+
+    const createdState = waitForState(client);
+    client.emit("room:create", { nickname: "Ignored" });
+    const room = await createdState;
+
+    client.emit("room:leave");
+    const records = await waitForGameRecords(baseUrl, account.token);
+
+    expect(records[0]).toMatchObject({
+      account: "record-alpha",
+      nickname: "Record Alpha",
+      gameKind: "doudizhu",
+      gameName: "斗地主",
+      roomCode: room.roomCode,
+      seat: 0,
+      finalScore: 0,
+      scoreLabel: "0 分",
+      resultLabel: "房间已创建，等待另外两名玩家。",
+      leaveReason: "主动离场",
+      phase: "lobby"
+    });
+    expect(records[0].leftAt).toBeGreaterThanOrEqual(records[0].enteredAt);
   });
 
   it("rejects chat messages before a socket joins chat", async () => {

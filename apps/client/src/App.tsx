@@ -34,6 +34,7 @@ import type {
   DaBanZiRoomView,
   DaBanZiRoundResult,
   GameKind,
+  GameSessionRecord,
   PlayerSeat,
   PlayerView,
   RoomView,
@@ -157,6 +158,10 @@ interface VoiceTokenResponse {
   participantName: string;
 }
 
+interface GameRecordsResponse {
+  records: GameSessionRecord[];
+}
+
 class ApiException extends Error {
   constructor(
     public readonly code: string,
@@ -261,6 +266,10 @@ export default function App() {
   const [chatJoined, setChatJoined] = useState(false);
   const [chatDraft, setChatDraft] = useState("");
   const [gameChatOpen, setGameChatOpen] = useState(false);
+  const [gameRecords, setGameRecords] = useState<GameSessionRecord[]>([]);
+  const [gameRecordsOpen, setGameRecordsOpen] = useState(false);
+  const [gameRecordsBusy, setGameRecordsBusy] = useState(false);
+  const [gameRecordsError, setGameRecordsError] = useState("");
   const roomRef = useRef<RoomView | null>(null);
   const zjhRoomRef = useRef<ZjhRoomView | null>(null);
   const daBanZiRoomRef = useRef<DaBanZiRoomView | null>(null);
@@ -328,11 +337,38 @@ export default function App() {
     setChatJoined(false);
     setChatDraft("");
     setGameChatOpen(false);
+    setGameRecords([]);
+    setGameRecordsOpen(false);
+    setGameRecordsBusy(false);
+    setGameRecordsError("");
     setLeaveConfirmOpen(false);
     if (message) {
       setToast(message);
     }
   }, []);
+
+  const refreshGameRecords = useCallback(async () => {
+    if (!authToken) {
+      setGameRecords([]);
+      return;
+    }
+
+    setGameRecordsBusy(true);
+    setGameRecordsError("");
+    try {
+      const result = await requestJson<GameRecordsResponse>("/api/game-records?limit=30", {
+        method: "GET",
+        headers: authHeaders(authToken)
+      });
+      setGameRecords(result.records);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "读取游戏记录失败。";
+      setGameRecordsError(message);
+      setToast(message);
+    } finally {
+      setGameRecordsBusy(false);
+    }
+  }, [authToken]);
 
   useEffect(() => {
     roomRef.current = room;
@@ -569,6 +605,10 @@ export default function App() {
         setChatJoined(false);
         setChatDraft("");
         setGameChatOpen(false);
+        setGameRecords([]);
+        setGameRecordsOpen(false);
+        setGameRecordsBusy(false);
+        setGameRecordsError("");
         setToast(error instanceof Error ? error.message : "登录已过期，请重新登录。");
       })
       .finally(() => {
@@ -593,6 +633,18 @@ export default function App() {
     socket.emit("auth:bind", { token: authToken });
     socket.emit("chat:join", { token: authToken });
   }, [authProfile, authToken, connected]);
+
+  useEffect(() => {
+    if (!authToken || activeView !== "hall") {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void refreshGameRecords();
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [activeView, authToken, refreshGameRecords]);
 
   const self = useMemo(() => room?.players.find((player) => player.seat === room.selfSeat), [room]);
   const selfHand = self?.hand ?? [];
@@ -667,6 +719,9 @@ export default function App() {
     setRoom(null);
     setZjhRoom(null);
     setDaBanZiRoom(null);
+    setGameRecords([]);
+    setGameRecordsOpen(false);
+    setGameRecordsError("");
     if (remember) {
       localStorage.setItem("doudizhu:nickname", cleanProfile.nickname);
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(cleanProfile));
@@ -763,6 +818,10 @@ export default function App() {
     setChatJoined(false);
     setChatDraft("");
     setGameChatOpen(false);
+    setGameRecords([]);
+    setGameRecordsOpen(false);
+    setGameRecordsBusy(false);
+    setGameRecordsError("");
     clearStoredRoomSession();
     clearStoredAuth();
     setToast("已退出登录。");
@@ -901,6 +960,16 @@ export default function App() {
     setChatDraft("");
   }
 
+  function toggleGameRecords() {
+    setGameRecordsOpen((current) => {
+      const next = !current;
+      if (next) {
+        void refreshGameRecords();
+      }
+      return next;
+    });
+  }
+
   if (isAdminRoute) {
     return <AdminPage />;
   }
@@ -960,6 +1029,12 @@ export default function App() {
           chatDraft={chatDraft}
           onChatDraftChange={setChatDraft}
           onSendChat={sendChatMessage}
+          gameRecords={gameRecords}
+          gameRecordsOpen={gameRecordsOpen}
+          gameRecordsBusy={gameRecordsBusy}
+          gameRecordsError={gameRecordsError}
+          onToggleGameRecords={toggleGameRecords}
+          onRefreshGameRecords={refreshGameRecords}
         />
         <Toast message={toast} />
       </>

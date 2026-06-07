@@ -63,6 +63,28 @@ model ChatMute {
   @@index([mutedAt])
 }
 
+model GameSessionRecord {
+  id          String   @id @default(cuid())
+  account     String   @db.VarChar(64)
+  nickname    String   @db.VarChar(32)
+  gameKind    String   @db.VarChar(32)
+  gameName    String   @db.VarChar(32)
+  roomCode    String   @db.VarChar(16)
+  seat        Int?
+  enteredAt   DateTime
+  leftAt      DateTime @default(now())
+  finalScore  Int      @default(0)
+  scoreLabel  String   @db.VarChar(64)
+  resultLabel String?  @db.VarChar(128)
+  leaveReason String?  @db.VarChar(64)
+  phase       String   @db.VarChar(32)
+  createdAt   DateTime @default(now())
+
+  @@index([account, leftAt])
+  @@index([gameKind])
+  @@index([roomCode])
+}
+
 model AdminAuditLog {
   id     String   @id @default(cuid())
   at     DateTime @default(now())

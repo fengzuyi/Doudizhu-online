@@ -22,6 +22,7 @@ interface ZjhInternalPlayer {
   socketId: string;
   nickname: string;
   seat: number;
+  joinedAt: number;
   connected: boolean;
   ready: boolean;
   hand: Card[];
@@ -655,6 +656,7 @@ export class ZjhRoomManager {
       socketId,
       nickname,
       seat,
+      joinedAt: Date.now(),
       connected: true,
       ready: false,
       hand: [],

@@ -18,6 +18,12 @@ import {
   InMemoryAdminRepository,
   type AdminRepository
 } from "./adminRepository.js";
+import {
+  createPrismaGameHistoryRepository,
+  InMemoryGameHistoryRepository,
+  type GameHistoryRepository,
+  type GameSessionCreateInput
+} from "./gameHistoryRepository.js";
 import { createLogger } from "./logger.js";
 import type { AppLogger } from "./logger.js";
 
@@ -37,6 +43,12 @@ const DEFAULT_ADMIN_ACCOUNT = "admin";
 const DEFAULT_ADMIN_PASSWORD = "admin123456";
 const ADMIN_SESSION_TTL_MS = 12 * 60 * 60_000;
 const VOICE_TOKEN_TTL_SECONDS = 2 * 60 * 60;
+const MAX_GAME_HISTORY_RECORDS = 50;
+const GAME_NAME_BY_KIND: Record<GameKind, string> = {
+  doudizhu: "斗地主",
+  zha_jin_hua: "炸金花",
+  da_ban_zi: "打板子"
+};
 
 function getClientOrigins() {
   const raw = process.env.CLIENT_ORIGIN ?? process.env.CORS_ORIGIN;
@@ -59,6 +71,7 @@ export function createGameServer() {
 interface GameServerOptions {
   authRepository?: AuthRepository;
   adminRepository?: AdminRepository;
+  gameHistoryRepository?: GameHistoryRepository;
   authSessionTtlDays?: number;
   logger?: AppLogger;
   disableMaintenance?: boolean;
@@ -75,6 +88,15 @@ function normalizeVoiceGameKind(value: unknown): GameKind | undefined {
 
 function normalizeVoiceRoomCode(value: unknown) {
   return typeof value === "string" ? value.trim().toUpperCase() : "";
+}
+
+function normalizeHistoryLimit(value: unknown) {
+  const parsed = typeof value === "string" ? Number(value) : Number(value ?? MAX_GAME_HISTORY_RECORDS);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return MAX_GAME_HISTORY_RECORDS;
+  }
+
+  return Math.min(Math.floor(parsed), MAX_GAME_HISTORY_RECORDS);
 }
 
 function buildVoiceRoomName(gameKind: GameKind, roomCode: string) {
@@ -107,6 +129,9 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
   const authManager = new AuthManager(options.authRepository, { sessionTtlDays: options.authSessionTtlDays });
   const adminRepository =
     options.adminRepository ?? (options.authRepository ? new InMemoryAdminRepository() : createPrismaAdminRepository());
+  const gameHistoryRepository: GameHistoryRepository =
+    options.gameHistoryRepository ??
+    (options.authRepository ? new InMemoryGameHistoryRepository() : createPrismaGameHistoryRepository());
   const roomManager = new RoomManager();
   const zjhRoomManager = new ZjhRoomManager();
   const daBanZiRoomManager = new DaBanZiRoomManager();
@@ -303,6 +328,17 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
         roomName,
         participantName: profile.nickname
       });
+    } catch (error) {
+      sendAuthError(response, error);
+    }
+  });
+
+  app.get("/api/game-records", async (request, response) => {
+    try {
+      const profile = await authManager.me(getBearerToken(request.headers.authorization));
+      const limit = normalizeHistoryLimit(request.query.limit);
+      const records = await gameHistoryRepository.listGameSessions(profile.account, limit);
+      response.json({ records });
     } catch (error) {
       sendAuthError(response, error);
     }
@@ -541,6 +577,133 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
     return false;
   }
 
+  type SocketSession = { account: string; nickname: string; token: string };
+
+  async function persistGameSession(input: GameSessionCreateInput) {
+    try {
+      await gameHistoryRepository.addGameSession(input);
+      logger.info("game_history.recorded", {
+        account: input.account,
+        gameKind: input.gameKind,
+        roomCode: input.roomCode,
+        finalScore: input.finalScore
+      });
+    } catch (error) {
+      logger.error("game_history.persist_failed", {
+        account: input.account,
+        gameKind: input.gameKind,
+        roomCode: input.roomCode,
+        error
+      });
+    }
+  }
+
+  function getSessionForRecord(socketId: string, sessionOverride?: SocketSession) {
+    return sessionOverride ?? socketAuth.get(socketId);
+  }
+
+  function doudizhuResultLabel(room: InternalRoom) {
+    if (room.result) {
+      return room.result.landlordWon ? "地主获胜" : "农民获胜";
+    }
+
+    return room.message ?? getRoomPhaseLabel(room.phase);
+  }
+
+  function getRoomPhaseLabel(phase: string) {
+    const labels: Record<string, string> = {
+      lobby: "准备中",
+      bidding: "叫分中",
+      bao: "包牌中",
+      partner_call: "叫队友中",
+      playing: "对局中",
+      ended: "已结算"
+    };
+
+    return labels[phase] ?? phase;
+  }
+
+  async function recordDoudizhuExit(socketId: string, room: InternalRoom | undefined, reason: string, sessionOverride?: SocketSession) {
+    const session = getSessionForRecord(socketId, sessionOverride);
+    const player = room?.players.find((candidate) => candidate?.socketId === socketId);
+    if (!session || !room || !player) {
+      return;
+    }
+
+    await persistGameSession({
+      account: session.account,
+      nickname: player.nickname || session.nickname,
+      gameKind: "doudizhu",
+      gameName: GAME_NAME_BY_KIND.doudizhu,
+      roomCode: room.roomCode,
+      seat: player.seat,
+      enteredAt: player.joinedAt ?? room.createdAt,
+      leftAt: Date.now(),
+      finalScore: player.score ?? 0,
+      scoreLabel: `${player.score ?? 0} 分`,
+      resultLabel: doudizhuResultLabel(room),
+      leaveReason: reason,
+      phase: room.phase
+    });
+  }
+
+  async function recordZjhExit(socketId: string, room: ZjhInternalRoom | undefined, reason: string, sessionOverride?: SocketSession) {
+    const session = getSessionForRecord(socketId, sessionOverride);
+    const player = room?.players.find((candidate) => candidate?.socketId === socketId);
+    if (!session || !room || !player) {
+      return;
+    }
+
+    await persistGameSession({
+      account: session.account,
+      nickname: player.nickname || session.nickname,
+      gameKind: "zha_jin_hua",
+      gameName: GAME_NAME_BY_KIND.zha_jin_hua,
+      roomCode: room.roomCode,
+      seat: player.seat,
+      enteredAt: player.joinedAt ?? room.createdAt,
+      leftAt: Date.now(),
+      finalScore: player.score,
+      scoreLabel: `${player.score} 分`,
+      resultLabel: room.result ? `${room.result.winnerNickname} 赢得 ${room.result.pot} 分` : room.message ?? getRoomPhaseLabel(room.phase),
+      leaveReason: reason,
+      phase: room.phase
+    });
+  }
+
+  async function recordDaBanZiExit(socketId: string, room: DaBanZiInternalRoom | undefined, reason: string, sessionOverride?: SocketSession) {
+    const session = getSessionForRecord(socketId, sessionOverride);
+    const player = room?.players.find((candidate) => candidate?.socketId === socketId);
+    if (!session || !room || !player) {
+      return;
+    }
+
+    const finalScore = room.result?.collectedCounts[player.seat] ?? player.collectedCount;
+    await persistGameSession({
+      account: session.account,
+      nickname: player.nickname || session.nickname,
+      gameKind: "da_ban_zi",
+      gameName: GAME_NAME_BY_KIND.da_ban_zi,
+      roomCode: room.roomCode,
+      seat: player.seat,
+      enteredAt: player.joinedAt ?? room.createdAt,
+      leftAt: Date.now(),
+      finalScore,
+      scoreLabel: `收牌 ${finalScore} 张`,
+      resultLabel: room.result?.winnerLabel ?? room.message ?? getRoomPhaseLabel(room.phase),
+      leaveReason: reason,
+      phase: room.phase
+    });
+  }
+
+  async function recordSocketGameExits(socketId: string, reason: string, sessionOverride?: SocketSession) {
+    await Promise.all([
+      recordDoudizhuExit(socketId, roomManager.getRoomForSocket(socketId), reason, sessionOverride),
+      recordZjhExit(socketId, zjhRoomManager.getRoomForSocket(socketId), reason, sessionOverride),
+      recordDaBanZiExit(socketId, daBanZiRoomManager.getRoomForSocket(socketId), reason, sessionOverride)
+    ]);
+  }
+
   function emitDaBanZiRoom(room: DaBanZiInternalRoom | undefined) {
     if (!room) {
       return;
@@ -620,7 +783,8 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
     return transferred;
   }
 
-  function finalizeSocketGameDisconnect(socketId: string) {
+  function finalizeSocketGameDisconnect(socketId: string, sessionOverride?: SocketSession) {
+    void recordSocketGameExits(socketId, "断线离场", sessionOverride);
     const room = roomManager.disconnect(socketId);
     const zjhRoom = zjhRoomManager.disconnect(socketId);
     const dbzRoom = daBanZiRoomManager.disconnect(socketId);
@@ -657,12 +821,12 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
     if (previousPending) {
       clearTimeout(previousPending.timer);
       pendingGameDisconnects.delete(session.account);
-      finalizeSocketGameDisconnect(previousPending.socketId);
+      finalizeSocketGameDisconnect(previousPending.socketId, previousPending);
     }
 
     const timer = setTimeout(() => {
       pendingGameDisconnects.delete(session.account);
-      const disconnected = finalizeSocketGameDisconnect(socketId);
+      const disconnected = finalizeSocketGameDisconnect(socketId, session);
       logger.info("socket.disconnect_finalized", {
         socketId,
         account: session.account,
@@ -724,12 +888,14 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
   function removeSocketFromGameRooms(socketId: string) {
     const room = roomManager.getRoomForSocket(socketId);
     if (room) {
+      void recordDoudizhuExit(socketId, room, "账号下线");
       io.sockets.sockets.get(socketId)?.leave(room.roomCode);
       emitRoom(roomManager.leaveRoom(socketId));
     }
 
     const zjhRoom = zjhRoomManager.getRoomForSocket(socketId);
     if (zjhRoom) {
+      void recordZjhExit(socketId, zjhRoom, "账号下线");
       io.sockets.sockets.get(socketId)?.leave(zjhSocketRoom(zjhRoom.roomCode));
       const updatedRoom = zjhRoomManager.leaveRoom(socketId);
       emitZjhRoom(updatedRoom);
@@ -743,6 +909,7 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
 
     const daBanZiRoom = daBanZiRoomManager.getRoomForSocket(socketId);
     if (daBanZiRoom) {
+      void recordDaBanZiExit(socketId, daBanZiRoom, "账号下线");
       io.sockets.sockets.get(socketId)?.leave(dbzSocketRoom(daBanZiRoom.roomCode));
       const updatedRoom = daBanZiRoomManager.leaveRoom(socketId);
       emitDaBanZiRoom(updatedRoom);
@@ -813,6 +980,7 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
     }
     pendingGameDisconnects.clear();
     authManager.close().catch((error) => logger.error("auth.close_failed", { error }));
+    gameHistoryRepository.close?.().catch((error) => logger.error("game_history.close_failed", { error }));
   });
 
   io.on("connection", (socket) => {
@@ -863,10 +1031,11 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       }
     });
 
-    socket.on("room:leave", () => {
+    socket.on("room:leave", async () => {
       try {
         const room = roomManager.getRoomForSocket(socket.id);
         if (room) {
+          await recordDoudizhuExit(socket.id, room, "主动离场");
           socket.leave(room.roomCode);
         }
         const updatedRoom = roomManager.leaveRoom(socket.id);
@@ -1070,10 +1239,11 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       }
     });
 
-    socket.on("zjh:room:leave", () => {
+    socket.on("zjh:room:leave", async () => {
       try {
         const room = zjhRoomManager.getRoomForSocket(socket.id);
         if (room) {
+          await recordZjhExit(socket.id, room, "主动离场");
           socket.leave(zjhSocketRoom(room.roomCode));
         }
         const updatedRoom = zjhRoomManager.leaveRoom(socket.id);
@@ -1211,10 +1381,11 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       }
     });
 
-    socket.on("dbz:room:leave", () => {
+    socket.on("dbz:room:leave", async () => {
       try {
         const room = daBanZiRoomManager.getRoomForSocket(socket.id);
         if (room) {
+          await recordDaBanZiExit(socket.id, room, "主动离场");
           socket.leave(dbzSocketRoom(room.roomCode));
         }
         const updatedRoom = daBanZiRoomManager.leaveRoom(socket.id);
@@ -1315,7 +1486,7 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       }
 
       socketAuth.delete(socket.id);
-      const { room, zjhRoom, dbzRoom } = finalizeSocketGameDisconnect(socket.id);
+      const { room, zjhRoom, dbzRoom } = finalizeSocketGameDisconnect(socket.id, session);
       if (zjhRoom) {
         socket.leave(zjhSocketRoom(zjhRoom.roomCode));
       }

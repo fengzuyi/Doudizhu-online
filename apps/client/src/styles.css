@@ -2386,6 +2386,8 @@ button.playing-card.selectable:hover:not(:disabled) {
 }
 
 .friends-topbar {
+  position: relative;
+  z-index: 80;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -2460,6 +2462,151 @@ button.playing-card.selectable:hover:not(:disabled) {
 .friends-icon-button {
   width: 44px;
   padding: 0;
+}
+
+.friends-record-wrap {
+  position: relative;
+  z-index: 90;
+  display: inline-flex;
+}
+
+.friends-record-popover {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 1000;
+  width: min(360px, calc(100vw - 28px));
+  max-height: min(520px, calc(100dvh - 118px));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  border: 1px solid rgba(139, 178, 217, 0.26);
+  border-radius: 8px;
+  padding: 14px;
+  background: rgba(7, 20, 37, 0.96);
+  color: #f4fbff;
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(18px);
+}
+
+.friends-record-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.friends-record-head h3,
+.friends-record-head span,
+.friends-record-item p,
+.friends-record-empty {
+  margin: 0;
+}
+
+.friends-record-head h3 {
+  color: #f6fbff;
+  font-size: 17px;
+  line-height: 1.15;
+}
+
+.friends-record-head span {
+  display: block;
+  margin-top: 4px;
+  color: rgba(172, 196, 217, 0.78);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.friends-record-refresh {
+  flex: 0 0 auto;
+  width: 34px;
+  min-height: 34px;
+  border-radius: 8px;
+  border: 1px solid rgba(139, 178, 217, 0.24);
+  padding: 0;
+  background: rgba(19, 213, 195, 0.12);
+  color: #6fffe3;
+  box-shadow: none;
+}
+
+.friends-record-refresh:disabled {
+  color: rgba(172, 196, 217, 0.5);
+}
+
+.friends-record-list {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-color: rgba(111, 255, 227, 0.32) rgba(8, 21, 38, 0.6);
+  scrollbar-width: thin;
+}
+
+.friends-record-item {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 12px;
+  border: 1px solid rgba(139, 178, 217, 0.16);
+  border-radius: 8px;
+  padding: 11px 12px;
+  background: rgba(8, 21, 38, 0.74);
+}
+
+.friends-record-item strong,
+.friends-record-item span,
+.friends-record-item p {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.friends-record-item strong {
+  display: block;
+  color: #f6fbff;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.friends-record-item span,
+.friends-record-item time {
+  color: rgba(172, 196, 217, 0.78);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.friends-record-item time {
+  white-space: nowrap;
+}
+
+.friends-record-item p {
+  grid-column: 1 / -1;
+  color: rgba(214, 231, 245, 0.82);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.friends-record-item b {
+  justify-self: end;
+  align-self: center;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: rgba(19, 213, 195, 0.13);
+  color: #a8fff0;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.friends-record-empty {
+  border-radius: 8px;
+  padding: 14px;
+  background: rgba(8, 21, 38, 0.66);
+  color: rgba(214, 231, 245, 0.78);
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .friends-logout-button {
@@ -2808,6 +2955,12 @@ button.playing-card.selectable:hover:not(:disabled) {
 
   .friends-top-actions,
   .friends-top-actions>* {
+    width: 100%;
+  }
+
+  .friends-record-popover {
+    left: 0;
+    right: 0;
     width: 100%;
   }
 
@@ -4249,6 +4402,10 @@ button.playing-card.selectable:hover:not(:disabled) {
   background: transparent;
   box-shadow: none;
   backdrop-filter: none;
+}
+
+.hall-page.friends-hall .friends-topbar {
+  z-index: 120;
 }
 
 .hall-page.friends-hall .friends-profile-card,

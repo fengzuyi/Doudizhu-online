@@ -126,6 +126,23 @@ export interface ChatMessage {
 
 export type GameKind = "doudizhu" | "zha_jin_hua" | "da_ban_zi";
 
+export interface GameSessionRecord {
+  id: string;
+  account: string;
+  nickname: string;
+  gameKind: GameKind;
+  gameName: string;
+  roomCode: string;
+  seat?: number;
+  enteredAt: number;
+  leftAt: number;
+  finalScore: number;
+  scoreLabel: string;
+  resultLabel?: string;
+  leaveReason?: string;
+  phase: string;
+}
+
 export type ZjhPhase = "lobby" | "playing" | "ended";
 
 export type ZjhHandType = "high_card" | "pair" | "straight" | "flush" | "straight_flush" | "three_kind";
