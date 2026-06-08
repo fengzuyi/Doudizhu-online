@@ -110,7 +110,6 @@ export function DaBanZiTable({
               <Sparkles size={18} aria-hidden="true" />
               <strong>{room.message ?? "等待玩家操作"}</strong>
               {room.calledPartnerCard && <span>叫牌：{room.calledPartnerCard.label}</span>}
-              {room.freeLeadRemaining > 0 && <span>包了连出剩余 {room.freeLeadRemaining} 次</span>}
             </div>
 
             <div className="dbz-last-play">

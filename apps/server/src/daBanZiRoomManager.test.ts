@@ -55,7 +55,7 @@ describe("DaBanZiRoomManager", () => {
     expect(() => manager.chooseBao(bySeat.get(wrongSeat) ?? "", "pass")).toThrow(GameException);
   });
 
-  it("starts one-vs-three when a player chooses bao and grants free leads", () => {
+  it("starts one-vs-three when a player chooses bao and then rotates normally", () => {
     const { manager, room } = createFullRoom();
     const bySeat = socketBySeat(room);
     const baoSeat = room.baoCurrentSeat ?? 0;
@@ -64,7 +64,7 @@ describe("DaBanZiRoomManager", () => {
     manager.chooseBao(baoSocket, "bao");
     expect(room.phase).toBe("playing");
     expect(room.mode).toBe("one_vs_three");
-    expect(room.freeLeadRemaining).toBe(3);
+    expect(room.freeLeadRemaining).toBe(0);
     expect(room.currentTurn).toBe(baoSeat);
 
     const firstCard = room.players[baoSeat]?.hand[0];
@@ -73,9 +73,13 @@ describe("DaBanZiRoomManager", () => {
     }
     manager.playCards(baoSocket, [firstCard.id]);
 
-    expect(room.players[baoSeat]?.collectedCount).toBe(1);
-    expect(room.freeLeadRemaining).toBe(2);
-    expect(room.currentTurn).toBe(baoSeat);
+    expect(room.players[baoSeat]?.collectedCount).toBe(0);
+    expect(room.lastPlay?.seat).toBe(baoSeat);
+    expect(room.freeLeadRemaining).toBe(0);
+    expect(room.currentTurn).toBe((baoSeat + 1) % 4);
+
+    manager.pass(bySeat.get(room.currentTurn ?? -1) ?? "");
+    expect(room.currentTurn).toBe((baoSeat + 2) % 4);
   });
 
   it("passes all bao choices into hidden partner-call mode", () => {

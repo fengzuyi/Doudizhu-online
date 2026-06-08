@@ -292,7 +292,7 @@ export class DaBanZiRoomManager {
       throw error;
     }
 
-    if (room.freeLeadRemaining <= 0 && !canBeatDaBanZiHand(analysis, room.lastPlay?.analysis)) {
+    if (!canBeatDaBanZiHand(analysis, room.lastPlay?.analysis)) {
       player.hand = sortDaBanZiCards([...player.hand, ...cards]);
       throw new GameException("PLAY_TOO_SMALL", "出的牌压不过上一手。");
     }
@@ -318,26 +318,6 @@ export class DaBanZiRoomManager {
     });
     this.markFinishedIfNeeded(room, player);
 
-    if (room.freeLeadRemaining > 0) {
-      this.collectTrick(room, player.seat);
-      const result = this.tryFinishAfterPlay(room);
-      if (result) {
-        this.touch(room);
-        return { room, result };
-      }
-
-      room.freeLeadRemaining -= 1;
-      if (room.freeLeadRemaining > 0) {
-        room.currentTurn = player.seat;
-        room.message = `${player.nickname} 包了连出，还剩 ${room.freeLeadRemaining} 次主动出牌。`;
-      } else {
-        room.currentTurn = this.nextActiveSeat(room, player.seat);
-        room.message = "包了连出结束，进入正常轮转。";
-      }
-      this.touch(room);
-      return { room };
-    }
-
     room.currentTurn = this.nextActiveSeat(room, player.seat);
     if (room.currentTurn === undefined) {
       this.collectTrick(room, player.seat);
@@ -355,9 +335,6 @@ export class DaBanZiRoomManager {
     const { room, player } = this.requireTurn(socketId);
     if (!room.lastPlay) {
       throw new GameException("CANNOT_PASS", "当前无人出牌，必须主动出牌。");
-    }
-    if (room.freeLeadRemaining > 0) {
-      throw new GameException("CANNOT_PASS", "包了连出阶段不能不出。");
     }
 
     player.lastAction = "不出";
@@ -484,12 +461,12 @@ export class DaBanZiRoomManager {
     room.mode = "one_vs_three";
     room.currentTurn = player.seat;
     room.baoSeat = player.seat;
-    room.freeLeadRemaining = 3;
+    room.freeLeadRemaining = 0;
     room.lastPlay = undefined;
     room.trickCardCount = 0;
     room.passCount = 0;
     player.lastAction = "包了";
-    room.message = `${player.nickname} 包了，将连续主动出牌 3 次。`;
+    room.message = `${player.nickname} 包了，由其先出牌。`;
     this.pushLog(room, {
       seat: player.seat,
       nickname: player.nickname,
