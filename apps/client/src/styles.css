@@ -5963,6 +5963,14 @@ button.playing-card.selectable:hover:not(:disabled) {
   backdrop-filter: blur(8px);
 }
 
+.dbz-status-card,
+.dbz-last-play {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
 .dbz-last-play {
   min-width: min(100%, 280px);
   border-radius: 12px;
