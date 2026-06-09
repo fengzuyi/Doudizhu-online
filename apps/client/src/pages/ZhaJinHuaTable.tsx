@@ -964,7 +964,7 @@ function ZjhSeat({
         {banker && (
           <span className="zjh-seat-badge">
             <Crown size={12} aria-hidden="true" />
-            先手
+            庄家
           </span>
         )}
       </button>

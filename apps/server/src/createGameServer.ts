@@ -678,7 +678,6 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       return;
     }
 
-    const finalScore = room.result?.collectedCounts[player.seat] ?? player.collectedCount;
     await persistGameSession({
       account: session.account,
       nickname: player.nickname || session.nickname,
@@ -688,8 +687,8 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       seat: player.seat,
       enteredAt: player.joinedAt ?? room.createdAt,
       leftAt: Date.now(),
-      finalScore,
-      scoreLabel: `收牌 ${finalScore} 张`,
+      finalScore: player.score,
+      scoreLabel: `${player.score} 分`,
       resultLabel: room.result?.winnerLabel ?? room.message ?? getRoomPhaseLabel(room.phase),
       leaveReason: reason,
       phase: room.phase

@@ -256,6 +256,7 @@ export interface DaBanZiPlayerView {
   ready: boolean;
   cardCount: number;
   collectedCount: number;
+  score: number;
   finishedRank?: number;
   hand?: Card[];
   role?: "banker" | "partner" | "opponent" | "solo" | "defender" | "unknown";
@@ -284,6 +285,7 @@ export interface DaBanZiRoundResult {
   winnerLabel: string;
   winnerSeats: number[];
   reason: string;
+  scores: Record<number, number>;
   collectedCounts: Record<number, number>;
   teamCollectedCounts: Record<string, number>;
   finishOrder: number[];

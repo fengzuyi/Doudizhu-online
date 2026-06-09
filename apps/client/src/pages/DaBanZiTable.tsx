@@ -14,6 +14,26 @@ import {
 import type { Card, DaBanZiPartnerCallOption, DaBanZiPlayerView, DaBanZiRoomView } from "@doudizhu/shared";
 import type { ReactNode } from "react";
 
+const DBZ_ASSET_BASE = "/assets/zhajinhua";
+const DBZ_CARD_BACK_SRC = `${DBZ_ASSET_BASE}/card_back/red_back_line.png`;
+const DBZ_CHIP_SRC = "/assets/chips/chips_stacked_green.png";
+const DBZ_TURN_RING_SRC = "/assets/flash/0baa0bf0-d89d-419e-be7a-1bca8cc44b53.362fd_1.png";
+const DBZ_HEAD_ASSETS = [
+  "/assets/head/img_ntx10.png",
+  "/assets/head/img_ntx12.png",
+  "/assets/head/img_ntx3.png",
+  "/assets/head/img_ntx7.png",
+  "/assets/head/img_ntx9.png",
+  "/assets/head/img_txn10.png",
+  "/assets/head/img_txn2.png",
+  "/assets/head/img_txn33.png",
+  "/assets/head/img_txn5.png",
+  "/assets/head/img_txn8.png"
+];
+const DBZ_SEAT_POSITIONS = ["bottom", "right", "top", "left"] as const;
+
+type DbzSeatPosition = (typeof DBZ_SEAT_POSITIONS)[number];
+
 interface DaBanZiTableProps {
   room: DaBanZiRoomView;
   connected: boolean;
@@ -48,7 +68,7 @@ export function DaBanZiTable({
   voiceDock
 }: DaBanZiTableProps) {
   const self = room.players.find((player) => player.seat === room.selfSeat);
-  const opponents = room.players.filter((player) => player.seat !== room.selfSeat);
+  const seatSlots = buildDaBanZiSeatSlots(room.players, room.maxPlayers, room.selfSeat);
   const selfCards = self?.hand ?? [];
   const isMyTurn =
     (room.phase === "bao" && room.baoCurrentSeat === room.selfSeat) ||
@@ -60,7 +80,7 @@ export function DaBanZiTable({
     <>
       <header className="dbz-header">
         <div className="dbz-header-left">
-          <strong className="dbz-brand">打板子好友房</strong>
+          <strong className="dbz-brand">打板子</strong>
           <span className="dbz-pill room">
             房间 <b>{room.roomCode}</b>
             <button type="button" onClick={onCopyRoomCode} aria-label="复制房间号">
@@ -94,15 +114,20 @@ export function DaBanZiTable({
 
       <main className="dbz-main">
         <section className="dbz-table" aria-label="打板子牌桌">
-          <div className="dbz-opponents">
-            {opponents.map((player) => (
-              <DaBanZiSeat key={player.seat} player={player} active={room.currentTurn === player.seat || room.baoCurrentSeat === player.seat} />
-            ))}
-            {Array.from({ length: room.maxPlayers - room.players.length }).map((_, index) => (
-              <div className="dbz-empty-seat" key={index}>
-                等待入座
-              </div>
-            ))}
+          <div className="dbz-seat-ring" aria-label="玩家座位">
+            {seatSlots.map(({ seat, player, position }) =>
+              player ? (
+                <DaBanZiSeat
+                  key={seat}
+                  player={player}
+                  active={room.currentTurn === player.seat || room.baoCurrentSeat === player.seat}
+                  self={position === "bottom"}
+                  position={position}
+                />
+              ) : (
+                <DaBanZiEmptySeat key={seat} seat={seat} position={position} />
+              )
+            )}
           </div>
 
           <section className="dbz-center">
@@ -144,7 +169,6 @@ export function DaBanZiTable({
           </section>
 
           <section className="dbz-self-zone" aria-label="我的牌">
-            {self && <DaBanZiSeat player={self} active={room.currentTurn === self.seat || room.baoCurrentSeat === self.seat} self />}
             <div className="dbz-hand">
               {selfCards.length > 0 ? (
                 selfCards.map((card) => (
@@ -165,18 +189,6 @@ export function DaBanZiTable({
           </section>
           {voiceDock}
         </section>
-
-        <aside className="dbz-log-panel" aria-label="牌局记录">
-          <h3>牌局记录</h3>
-          <div>
-            {room.turnLog.slice(-10).map((event, index) => (
-              <p key={`${event.at}-${index}`}>
-                <strong>{event.nickname ?? "系统"}</strong>
-                {event.label}
-              </p>
-            ))}
-          </div>
-        </aside>
       </main>
 
       {room.phase === "ended" && <DaBanZiResultDialog room={room} notice={notice} onReady={onReady} />}
@@ -207,19 +219,18 @@ function DaBanZiActionBar({
 }) {
   if (room.phase === "lobby") {
     return (
-      <div className="dbz-actions">
+      <div className="dbz-actions dbz-ready-actions">
         <button className="primary-btn" type="button" onClick={onReady} disabled={self?.ready || room.playerCount < 4}>
           <Play size={18} aria-hidden="true" />
           {self?.ready ? "已准备" : "准备"}
         </button>
-        <span>{room.playerCount < 4 ? "等待 4 人坐满" : "全员准备后开始"}</span>
       </div>
     );
   }
 
   if (room.phase === "ended") {
     return (
-      <div className="dbz-actions">
+      <div className="dbz-actions dbz-bao-actions">
         <button className="primary-btn" type="button" onClick={onReady}>
           <Play size={18} aria-hidden="true" />
           再来一局
@@ -230,7 +241,7 @@ function DaBanZiActionBar({
 
   if (room.phase === "bao") {
     if (!isMyTurn) {
-      return <div className="dbz-waiting">等待玩家选择是否包了</div>;
+      return null;
     }
     return (
       <div className="dbz-actions">
@@ -266,7 +277,7 @@ function DaBanZiActionBar({
   }
 
   return (
-    <div className="dbz-actions">
+    <div className="dbz-actions dbz-play-actions">
       <button className="primary-btn" type="button" onClick={onPlay} disabled={selectedCount === 0}>
         <Shield size={18} aria-hidden="true" />
         出牌 {selectedCount > 0 ? `(${selectedCount})` : ""}
@@ -278,31 +289,76 @@ function DaBanZiActionBar({
   );
 }
 
-function DaBanZiSeat({ player, active, self = false }: { player: DaBanZiPlayerView; active: boolean; self?: boolean }) {
+function DaBanZiSeat({
+  player,
+  active,
+  self = false,
+  position
+}: {
+  player: DaBanZiPlayerView;
+  active: boolean;
+  self?: boolean;
+  position: DbzSeatPosition;
+}) {
+  const hiddenCardCount = Math.min(player.cardCount || 0, 3);
+  const previewCards = !self && player.hand ? player.hand.slice(0, 3) : [];
+  const role = roleLabel(player.role);
+  const lastAction = player.lastAction && player.lastAction !== role ? player.lastAction : undefined;
+
   return (
-    <article className={`dbz-seat ${active ? "active" : ""} ${self ? "self" : ""}`}>
-      <div className="dbz-seat-head">
-        <strong>{self ? "你" : `座位 ${player.seat + 1}`}</strong>
-        <span>{roleLabel(player.role)}</span>
+    <article className={`dbz-seat ${active ? "active" : ""} ${self ? "self" : ""} pos-${position}`}>
+      <div className="dbz-seat-avatar">
+        <img className="dbz-seat-avatar-img" src={getDbzAvatarSrc(player.seat)} alt={`${player.nickname}头像`} draggable={false} />
+        {active && <img className="dbz-turn-ring" src={DBZ_TURN_RING_SRC} alt="" draggable={false} aria-hidden="true" />}
       </div>
-      <h3>{player.nickname}</h3>
-      <p>
-        {player.cardCount} 张 · 收 {player.collectedCount} · {player.connected ? "在线" : "离线"}
-      </p>
-      {player.finishedRank && <p>第 {player.finishedRank} 名出完</p>}
-      {player.lastAction && <em>{player.lastAction}</em>}
+      <div className="dbz-score-chip" aria-label={`积分 ${player.score}`}>
+        <img src={DBZ_CHIP_SRC} alt="" draggable={false} />
+        <span>{player.score}</span>
+      </div>
+      <div className="dbz-seat-info">
+        <div className="dbz-seat-head">
+          <strong>{self ? "你" : player.nickname}</strong>
+        </div>
+        <p>
+          {player.cardCount} 张 · 收 {player.collectedCount}
+          {!player.connected ? " · 离线" : ""}
+        </p>
+        {role && <em className="dbz-seat-role">{role}</em>}
+        {player.finishedRank && <em>第 {player.finishedRank} 名出完</em>}
+        {lastAction && <em>{lastAction}</em>}
+      </div>
+      {!self && hiddenCardCount > 0 && (
+        <div className="dbz-seat-card-strip" aria-label={`${player.nickname}手牌`}>
+          {previewCards.length > 0
+            ? previewCards.map((card) => <DaBanZiCard key={card.id} card={card} small />)
+            : Array.from({ length: hiddenCardCount }).map((_, index) => <DaBanZiCardBack key={index} small />)}
+        </div>
+      )}
     </article>
+  );
+}
+
+function DaBanZiEmptySeat({ seat, position }: { seat: number; position: DbzSeatPosition }) {
+  return (
+    <div className={`dbz-empty-seat pos-${position}`}>
+      <span>{seat + 1}</span>
+      <strong>等待入座</strong>
+    </div>
   );
 }
 
 function DaBanZiCard({ card, small = false }: { card: Card; small?: boolean }) {
   return (
-    <div className={`playing-card dbz-card ${small ? "small" : ""} ${card.color}`}>
-      <span className="card-corner">
-        <span className="card-rank">{card.label}</span>
-        <span className="card-suit">{card.suitSymbol}</span>
-      </span>
-      <span className="card-center-suit">{card.suitSymbol}</span>
+    <div className={`dbz-card ${small ? "small" : ""}`}>
+      <img src={getDaBanZiCardImageSrc(card)} alt={`${card.label}${card.suitSymbol}`} draggable={false} loading="lazy" />
+    </div>
+  );
+}
+
+function DaBanZiCardBack({ small = false }: { small?: boolean }) {
+  return (
+    <div className={`dbz-card dbz-card-back ${small ? "small" : ""}`} aria-hidden="true">
+      <img src={DBZ_CARD_BACK_SRC} alt="" draggable={false} loading="lazy" />
     </div>
   );
 }
@@ -332,6 +388,9 @@ function DaBanZiResultDialog({ room, notice, onReady }: { room: DaBanZiRoomView;
                     {result.finishOrder.includes(player.seat) ? ` · 第 ${result.finishOrder.indexOf(player.seat) + 1} 名` : ""}
                   </span>
                   <b>{result.collectedCounts[player.seat] ?? 0} 张</b>
+                  <b className={(result.scores[player.seat] ?? 0) >= 0 ? "score plus" : "score minus"}>
+                    {formatScoreDelta(result.scores[player.seat] ?? 0)}
+                  </b>
                 </p>
               ))}
             </div>
@@ -374,7 +433,61 @@ function roleLabel(role: DaBanZiPlayerView["role"]) {
     opponent: "对手",
     solo: "包了",
     defender: "防守",
-    unknown: "身份隐藏"
+    unknown: ""
   };
   return labels[role ?? "unknown"];
+}
+
+function formatScoreDelta(score: number) {
+  return score > 0 ? `+${score}` : `${score}`;
+}
+
+function buildDaBanZiSeatSlots(players: DaBanZiPlayerView[], maxPlayers: number, selfSeat?: number) {
+  const playersBySeat = new Map(players.map((player) => [player.seat, player]));
+  const startSeat = selfSeat ?? 0;
+
+  return Array.from({ length: Math.min(maxPlayers, DBZ_SEAT_POSITIONS.length) }, (_, index) => {
+    const seat = (startSeat + index) % maxPlayers;
+    return {
+      seat,
+      player: playersBySeat.get(seat),
+      position: DBZ_SEAT_POSITIONS[index]
+    };
+  });
+}
+
+function getDbzAvatarSrc(seat: number) {
+  return DBZ_HEAD_ASSETS[((seat % DBZ_HEAD_ASSETS.length) + DBZ_HEAD_ASSETS.length) % DBZ_HEAD_ASSETS.length];
+}
+
+function getDaBanZiCardImageSrc(card: Card) {
+  if (card.suit === "joker") {
+    return card.color === "red" ? `${DBZ_ASSET_BASE}/cards/card_joker_red.png` : `${DBZ_ASSET_BASE}/cards/card_joker_black.png`;
+  }
+
+  const suitName: Record<Exclude<Card["suit"], "joker">, string> = {
+    spades: "spade",
+    hearts: "heart",
+    clubs: "clubs",
+    diamonds: "diamond"
+  };
+  const rankName: Record<Card["rank"], string> = {
+    "3": "3",
+    "4": "4",
+    "5": "5",
+    "6": "6",
+    "7": "7",
+    "8": "8",
+    "9": "9",
+    "10": "10",
+    J: "11",
+    Q: "12",
+    K: "13",
+    A: "1",
+    "2": "2",
+    SJ: "joker_black",
+    BJ: "joker_red"
+  };
+
+  return `${DBZ_ASSET_BASE}/cards/card_${suitName[card.suit]}_${rankName[card.rank]}.png`;
 }

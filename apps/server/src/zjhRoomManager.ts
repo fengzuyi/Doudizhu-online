@@ -408,16 +408,17 @@ export class ZjhRoomManager {
       throw new GameException("NOT_ENOUGH_PLAYERS", "至少 2 名玩家才能开始炸金花。");
     }
 
+    const previousWinnerSeat = room.result?.winnerSeat;
     const deck = shuffleZjhDeck(this.rng);
     const hands = dealZjhHands(deck, players.length);
-    const banker = players[Math.floor(this.rng() * players.length)] ?? players[0];
+    const previousWinner = players.find((player) => player.seat === previousWinnerSeat && player.connected);
+    const banker = previousWinner ?? players[Math.floor(this.rng() * players.length)] ?? players[0];
     if (!banker) {
       throw new GameException("NOT_ENOUGH_PLAYERS", "至少 2 名玩家才能开始炸金花。");
     }
 
     room.phase = "playing";
     room.bankerSeat = banker.seat;
-    room.currentTurn = banker.seat;
     room.pot = 0;
     room.currentBet = BASE_ANTE;
     room.round = 1;
@@ -437,7 +438,8 @@ export class ZjhRoomManager {
       room.pot += BASE_ANTE;
     });
 
-    room.message = `${banker.nickname} 先手，开始下注。`;
+    room.currentTurn = this.nextActiveSeat(room, banker.seat) ?? banker.seat;
+    room.message = undefined;
     this.pushSystem(room, `本局开始，底注 ${BASE_ANTE} 分。`);
     this.touch(room);
   }
@@ -613,6 +615,17 @@ export class ZjhRoomManager {
 
   private activePlayers(room: ZjhInternalRoom) {
     return this.seatedPlayers(room).filter((player) => player.connected && !player.folded);
+  }
+
+  private nextActiveSeat(room: ZjhInternalRoom, fromSeat: number) {
+    for (let step = 1; step <= room.maxPlayers; step += 1) {
+      const seat = (fromSeat + step) % room.maxPlayers;
+      const player = room.players[seat];
+      if (player?.connected && !player.folded) {
+        return seat;
+      }
+    }
+    return undefined;
   }
 
   private connectedPlayers(room: ZjhInternalRoom) {

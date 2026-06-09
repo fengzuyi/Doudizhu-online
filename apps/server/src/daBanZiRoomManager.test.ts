@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { canBeatDaBanZiHand, analyzeDaBanZiHand } from "@doudizhu/shared";
-import { DaBanZiRoomManager } from "./daBanZiRoomManager.js";
+import type { Card, DaBanZiRoundResult } from "@doudizhu/shared";
+import { DaBanZiRoomManager, type DaBanZiInternalRoom } from "./daBanZiRoomManager.js";
 import { GameException } from "./roomManager.js";
 
 function createFullRoom(rng: () => number = () => 0.31) {
@@ -37,6 +38,37 @@ function passBaoStage(manager: DaBanZiRoomManager, room: NonNullable<ReturnType<
   }
 }
 
+function testCard(id: string): Card {
+  return { id, suit: "spades", rank: "3", value: 3, label: "3", suitSymbol: "♠", color: "black" };
+}
+
+function forceTwoVsTwo(room: DaBanZiInternalRoom) {
+  room.phase = "playing";
+  room.mode = "two_vs_two";
+  room.bankerSeat = 0;
+  room.partnerSeat = 2;
+  room.partnerRevealed = true;
+  room.lastPlay = undefined;
+  room.trickCardCount = 0;
+}
+
+function finishTwoVsTwoForTest(manager: DaBanZiRoomManager, room: DaBanZiInternalRoom) {
+  return (manager as unknown as { finishTwoVsTwo: (target: DaBanZiInternalRoom, reason: string) => DaBanZiRoundResult }).finishTwoVsTwo(
+    room,
+    "测试结算"
+  );
+}
+
+function finishOneVsThreeForTest(
+  manager: DaBanZiRoomManager,
+  room: DaBanZiInternalRoom,
+  winner: "solo" | "defenders"
+) {
+  return (manager as unknown as {
+    finishOneVsThree: (target: DaBanZiInternalRoom, winner: "solo" | "defenders", reason: string) => DaBanZiRoundResult;
+  }).finishOneVsThree(room, winner, "测试结算");
+}
+
 describe("DaBanZiRoomManager", () => {
   it("creates a four-player room and enters bao choice after all players ready", () => {
     const { room } = createFullRoom();
@@ -45,6 +77,64 @@ describe("DaBanZiRoomManager", () => {
     expect(room.phase).toBe("bao");
     expect(room.players.every((player) => player?.hand.length === 13)).toBe(true);
     expect(room.baoCurrentSeat).toBeDefined();
+  });
+
+  it("starts every da ban zi player at 1000 points", () => {
+    const { manager, room } = createFullRoom();
+    const view = manager.buildViews(room)[0]?.roomView;
+
+    expect(view?.players.map((player) => player.score)).toEqual([1000, 1000, 1000, 1000]);
+  });
+
+  it("awards four points each when one team finishes first and second", () => {
+    const { manager, room } = createFullRoom();
+    forceTwoVsTwo(room);
+    room.finishOrder = [0, 2];
+    room.players[0]!.hand = [];
+    room.players[2]!.hand = [];
+    room.players[1]!.hand = [testCard("seat-1")];
+    room.players[3]!.hand = [testCard("seat-3")];
+
+    const result = finishTwoVsTwoForTest(manager, room);
+
+    expect(result.winnerSeats).toEqual([0, 2]);
+    expect(result.scores).toEqual({ 0: 4, 1: -4, 2: 4, 3: -4 });
+    expect(room.players.map((player) => player?.score)).toEqual([1004, 996, 1004, 996]);
+  });
+
+  it("awards two points each for a normal two-vs-two collected-card win", () => {
+    const { manager, room } = createFullRoom();
+    forceTwoVsTwo(room);
+    room.finishOrder = [0, 1, 2];
+    room.players[0]!.hand = [];
+    room.players[1]!.hand = [];
+    room.players[2]!.hand = [];
+    room.players[3]!.hand = [testCard("seat-3")];
+    room.players[0]!.collectedCount = 2;
+    room.players[1]!.collectedCount = 1;
+    room.players[2]!.collectedCount = 2;
+    room.players[3]!.collectedCount = 0;
+
+    const result = finishTwoVsTwoForTest(manager, room);
+
+    expect(result.winnerSeats).toEqual([0, 2]);
+    expect(result.scores).toEqual({ 0: 2, 1: -2, 2: 2, 3: -2 });
+    expect(room.players.map((player) => player?.score)).toEqual([1002, 998, 1002, 998]);
+  });
+
+  it("awards six points to the bao player when they win one-vs-three", () => {
+    const { manager, room } = createFullRoom();
+    room.phase = "playing";
+    room.mode = "one_vs_three";
+    room.baoSeat = 1;
+    room.lastPlay = undefined;
+    room.trickCardCount = 0;
+
+    const result = finishOneVsThreeForTest(manager, room, "solo");
+
+    expect(result.winnerSeats).toEqual([1]);
+    expect(result.scores).toEqual({ 0: -2, 1: 6, 2: -2, 3: -2 });
+    expect(room.players.map((player) => player?.score)).toEqual([998, 1006, 998, 998]);
   });
 
   it("rejects out-of-turn bao choices", () => {

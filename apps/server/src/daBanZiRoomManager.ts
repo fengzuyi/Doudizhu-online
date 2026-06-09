@@ -23,6 +23,7 @@ import { GameException } from "./roomManager.js";
 const ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const MAX_PLAYERS = 4;
 const SPADE_SEVEN_ID = "spades-7";
+const DEFAULT_DBZ_SCORE = 1000;
 
 interface DaBanZiInternalPlayer {
   socketId: string;
@@ -33,6 +34,7 @@ interface DaBanZiInternalPlayer {
   ready: boolean;
   hand: Card[];
   collectedCount: number;
+  score: number;
   finishedRank?: number;
   lastAction?: string;
 }
@@ -512,6 +514,7 @@ export class DaBanZiRoomManager {
       winnerLabel: `${player.nickname} 春天获胜`,
       winnerSeats: [player.seat],
       reason: "春天",
+      scores: this.makeSoloScores(room, player.seat),
       teamCollectedCounts: { [player.nickname]: 0 }
     });
     this.pushSystem(room, room.message);
@@ -560,10 +563,15 @@ export class DaBanZiRoomManager {
       winner === "solo"
         ? [baoSeat ?? -1].filter((seat) => seat >= 0)
         : defenderPlayers.map((player) => player.seat);
+    const scores =
+      winner === "solo" && baoSeat !== undefined
+        ? this.makeSoloScores(room, baoSeat)
+        : this.makeTeamScores(room, winnerSeats, 2);
     const result = this.makeResult(room, {
       winnerLabel: winner === "solo" ? `${baoPlayer?.nickname ?? "包了玩家"} 获胜` : `${defenderLabel} 获胜`,
       winnerSeats,
       reason,
+      scores,
       teamCollectedCounts: {
         [baoPlayer?.nickname ?? "包了玩家"]: baoPlayer?.collectedCount ?? 0,
         [defenderLabel]: defenderPlayers.reduce((sum, player) => sum + player.collectedCount, 0)
@@ -615,9 +623,21 @@ export class DaBanZiRoomManager {
       }
     });
 
+    const firstTwoSeats = finalOrder.slice(0, 2);
+    const firstTwoBankerTeam = firstTwoSeats.length === 2 && firstTwoSeats.every((seat) => bankerTeam.includes(seat));
+    const firstTwoOpponentTeam = firstTwoSeats.length === 2 && firstTwoSeats.every((seat) => opponentSeats.includes(seat));
     let winnerLabel = "平局";
     let winnerSeats: number[] = [];
-    if (teamCollectedCounts[bankerTeamLabel] > teamCollectedCounts[opponentTeamLabel]) {
+    let scoreUnit = 2;
+    if (firstTwoBankerTeam) {
+      winnerLabel = `${bankerTeamLabel} 获胜`;
+      winnerSeats = bankerTeam;
+      scoreUnit = 4;
+    } else if (firstTwoOpponentTeam) {
+      winnerLabel = `${opponentTeamLabel} 获胜`;
+      winnerSeats = opponentSeats;
+      scoreUnit = 4;
+    } else if (teamCollectedCounts[bankerTeamLabel] > teamCollectedCounts[opponentTeamLabel]) {
       winnerLabel = `${bankerTeamLabel} 获胜`;
       winnerSeats = bankerTeam;
     } else if (teamCollectedCounts[opponentTeamLabel] > teamCollectedCounts[bankerTeamLabel]) {
@@ -629,6 +649,7 @@ export class DaBanZiRoomManager {
       winnerLabel,
       winnerSeats,
       reason,
+      scores: this.makeTeamScores(room, winnerSeats, scoreUnit),
       teamCollectedCounts,
       finishOrder: finalOrder
     });
@@ -641,12 +662,30 @@ export class DaBanZiRoomManager {
     return result;
   }
 
+  private makeTeamScores(room: DaBanZiInternalRoom, winnerSeats: number[], unit: number) {
+    const winnerSeatSet = new Set(winnerSeats);
+    const scores: Record<number, number> = {};
+    for (const player of this.seatedPlayers(room)) {
+      scores[player.seat] = winnerSeatSet.size === 0 ? 0 : winnerSeatSet.has(player.seat) ? unit : -unit;
+    }
+    return scores;
+  }
+
+  private makeSoloScores(room: DaBanZiInternalRoom, winnerSeat: number) {
+    const scores: Record<number, number> = {};
+    for (const player of this.seatedPlayers(room)) {
+      scores[player.seat] = player.seat === winnerSeat ? 6 : -2;
+    }
+    return scores;
+  }
+
   private makeResult(
     room: DaBanZiInternalRoom,
     input: {
       winnerLabel: string;
       winnerSeats: number[];
       reason: string;
+      scores: Record<number, number>;
       teamCollectedCounts: Record<string, number>;
       finishOrder?: number[];
     }
@@ -654,6 +693,7 @@ export class DaBanZiRoomManager {
     const collectedCounts: Record<number, number> = {};
     for (const player of this.seatedPlayers(room)) {
       collectedCounts[player.seat] = player.collectedCount;
+      player.score += input.scores[player.seat] ?? 0;
     }
 
     return {
@@ -661,6 +701,7 @@ export class DaBanZiRoomManager {
       winnerLabel: input.winnerLabel,
       winnerSeats: input.winnerSeats,
       reason: input.reason,
+      scores: input.scores,
       collectedCounts,
       teamCollectedCounts: input.teamCollectedCounts,
       finishOrder: input.finishOrder ?? this.finalFinishOrder(room),
@@ -813,6 +854,7 @@ export class DaBanZiRoomManager {
         ready: player.ready,
         cardCount: player.hand.length,
         collectedCount: player.collectedCount,
+        score: player.score,
         finishedRank: player.finishedRank,
         hand: player.socketId === socketId || room.phase === "ended" ? player.hand : undefined,
         role: this.roleFor(room, self.seat, player.seat, partnerVisible),
@@ -952,7 +994,8 @@ export class DaBanZiRoomManager {
       connected: true,
       ready: false,
       hand: [],
-      collectedCount: 0
+      collectedCount: 0,
+      score: DEFAULT_DBZ_SCORE
     };
   }
 
