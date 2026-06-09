@@ -405,8 +405,12 @@ export class DaBanZiRoomManager {
       }));
   }
 
+  getRoom(roomCode: string) {
+    return this.rooms.get(roomCode.trim().toUpperCase());
+  }
+
   getRoomForTest(roomCode: string) {
-    return this.rooms.get(roomCode);
+    return this.getRoom(roomCode);
   }
 
   private startRound(room: DaBanZiInternalRoom) {

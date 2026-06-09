@@ -434,8 +434,12 @@ export class RoomManager {
     return room;
   }
 
+  getRoom(roomCode: string): InternalRoom | undefined {
+    return this.rooms.get(roomCode.trim().toUpperCase());
+  }
+
   getRoomForTest(roomCode: string): InternalRoom | undefined {
-    return this.rooms.get(roomCode);
+    return this.getRoom(roomCode);
   }
 
   getRoomCount() {

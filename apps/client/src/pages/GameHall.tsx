@@ -227,7 +227,7 @@ export function GameHall({
             </section>
 
             <section className="friends-room-card" aria-label="房间">
-              <h3>{currentGameName}房间</h3>
+              <h3>好友房</h3>
               {selectedGame === "zha_jin_hua" && (
                 <label className="friends-room-select">
                   人数上限
@@ -251,7 +251,7 @@ export function GameHall({
                     value={roomCodeInput}
                     maxLength={4}
                     onChange={(event) => onRoomCodeInputChange(event.target.value.toUpperCase())}
-                    placeholder={`输入${currentGameName}房间号`}
+                    placeholder="输入房间号"
                     autoComplete="off"
                     disabled={!connected}
                   />

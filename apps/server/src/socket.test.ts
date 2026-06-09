@@ -392,6 +392,27 @@ describe("socket game flow", () => {
     expect(rejoined.players.map((player) => player.nickname).sort()).toEqual(["Player A", "Player B"]);
   });
 
+  it("joins a zha jin hua room from the generic room code entry", async () => {
+    const [a, b] = await Promise.all([connectClient(baseUrl), connectClient(baseUrl)]);
+    clients = [a, b];
+    await Promise.all([
+      bindRegisteredAccount(baseUrl, a, "zjh-generic-a", "Player A"),
+      bindRegisteredAccount(baseUrl, b, "zjh-generic-b", "Player B")
+    ]);
+
+    const createdState = waitForZjhState(a);
+    a.emit("zjh:room:create", { nickname: "Ignored A", maxPlayers: 4 });
+    const roomCode = (await createdState).roomCode;
+
+    const joinedB = waitForZjhState(b);
+    b.emit("room:join", { roomCode, nickname: "Ignored B" });
+    const state = await joinedB;
+
+    expect(state.roomCode).toBe(roomCode);
+    expect(state.selfSeat).toBe(1);
+    expect(state.players.map((player) => player.nickname).sort()).toEqual(["Player A", "Player B"]);
+  });
+
   it("lets four sockets create, join, ready, and enter da ban zi bao phase", async () => {
     const [a, b, c, d] = await Promise.all([
       connectClient(baseUrl),
@@ -437,6 +458,27 @@ describe("socket game flow", () => {
     expect(state.baoCurrentSeat).toBeDefined();
     expect(state.players.find((player) => player.seat === state.selfSeat)?.hand).toHaveLength(13);
     expect(state.players.find((player) => player.seat !== state.selfSeat)?.hand).toBeUndefined();
+  });
+
+  it("joins a da ban zi room from the generic room code entry", async () => {
+    const [a, b] = await Promise.all([connectClient(baseUrl), connectClient(baseUrl)]);
+    clients = [a, b];
+    await Promise.all([
+      bindRegisteredAccount(baseUrl, a, "dbz-generic-a", "Player A"),
+      bindRegisteredAccount(baseUrl, b, "dbz-generic-b", "Player B")
+    ]);
+
+    const createdState = waitForDaBanZiState(a);
+    a.emit("dbz:room:create", { nickname: "Ignored A" });
+    const roomCode = (await createdState).roomCode;
+
+    const joinedB = waitForDaBanZiState(b);
+    b.emit("room:join", { roomCode, nickname: "Ignored B" });
+    const state = await joinedB;
+
+    expect(state.roomCode).toBe(roomCode);
+    expect(state.selfSeat).toBe(1);
+    expect(state.players.map((player) => player.nickname).sort()).toEqual(["Player A", "Player B"]);
   });
 
   it("rejects voice tokens before the account joins the requested room", async () => {

@@ -555,6 +555,129 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
     return `dbz:${roomCode}`;
   }
 
+  type GameRoomLookup =
+    | { gameKind: "doudizhu"; room: InternalRoom }
+    | { gameKind: "zha_jin_hua"; room: ZjhInternalRoom }
+    | { gameKind: "da_ban_zi"; room: DaBanZiInternalRoom };
+
+  function findCurrentGameRoom(socketId: string): GameRoomLookup | undefined {
+    const room = roomManager.getRoomForSocket(socketId);
+    if (room) {
+      return { gameKind: "doudizhu", room };
+    }
+
+    const zjhRoom = zjhRoomManager.getRoomForSocket(socketId);
+    if (zjhRoom) {
+      return { gameKind: "zha_jin_hua", room: zjhRoom };
+    }
+
+    const daBanZiRoom = daBanZiRoomManager.getRoomForSocket(socketId);
+    if (daBanZiRoom) {
+      return { gameKind: "da_ban_zi", room: daBanZiRoom };
+    }
+
+    return undefined;
+  }
+
+  function findGameRoomsByCode(roomCode: string): GameRoomLookup[] {
+    const rooms: GameRoomLookup[] = [];
+    const doudizhuRoom = roomManager.getRoom(roomCode);
+    const zjhRoom = zjhRoomManager.getRoom(roomCode);
+    const daBanZiRoom = daBanZiRoomManager.getRoom(roomCode);
+
+    if (doudizhuRoom) {
+      rooms.push({ gameKind: "doudizhu", room: doudizhuRoom });
+    }
+    if (zjhRoom) {
+      rooms.push({ gameKind: "zha_jin_hua", room: zjhRoom });
+    }
+    if (daBanZiRoom) {
+      rooms.push({ gameKind: "da_ban_zi", room: daBanZiRoom });
+    }
+
+    return rooms;
+  }
+
+  function joinSocketTransportRoom(socketId: string, target: GameRoomLookup) {
+    const clientSocket = io.sockets.sockets.get(socketId);
+    if (!clientSocket) {
+      return;
+    }
+
+    if (target.gameKind === "doudizhu") {
+      clientSocket.join(target.room.roomCode);
+    } else if (target.gameKind === "zha_jin_hua") {
+      clientSocket.join(zjhSocketRoom(target.room.roomCode));
+    } else {
+      clientSocket.join(dbzSocketRoom(target.room.roomCode));
+    }
+  }
+
+  function emitGameRoom(target: GameRoomLookup) {
+    if (target.gameKind === "doudizhu") {
+      emitRoom(target.room);
+    } else if (target.gameKind === "zha_jin_hua") {
+      emitZjhRoom(target.room);
+    } else {
+      emitDaBanZiRoom(target.room);
+    }
+  }
+
+  function joinRoomByCode(socketId: string, roomCode: string, auth: SocketSession) {
+    const requestedRoomCode = roomCode.trim().toUpperCase();
+    if (!requestedRoomCode) {
+      throw new GameException("ROOM_CODE_REQUIRED", "请输入房间号。");
+    }
+
+    const currentRoom = findCurrentGameRoom(socketId);
+    if (currentRoom) {
+      if (currentRoom.room.roomCode !== requestedRoomCode) {
+        throw new GameException("ALREADY_IN_ROOM", "你已经在一个房间里。");
+      }
+
+      joinSocketTransportRoom(socketId, currentRoom);
+      logger.info("room.rejoined", {
+        gameKind: currentRoom.gameKind,
+        roomCode: currentRoom.room.roomCode,
+        socketId,
+        account: auth.account,
+        nickname: auth.nickname
+      });
+      emitGameRoom(currentRoom);
+      return;
+    }
+
+    const matches = findGameRoomsByCode(requestedRoomCode);
+    if (matches.length === 0) {
+      throw new GameException("ROOM_NOT_FOUND", "没有找到这个房间。");
+    }
+    if (matches.length > 1) {
+      throw new GameException("ROOM_CODE_AMBIGUOUS", "这个房间号同时匹配到多个游戏房间，请让房主重新创建房间后再加入。");
+    }
+
+    const target = matches[0];
+    if (target.gameKind === "doudizhu") {
+      const room = roomManager.joinRoom(socketId, requestedRoomCode, auth.nickname);
+      joinSocketTransportRoom(socketId, { gameKind: "doudizhu", room });
+      logger.info("room.joined", { gameKind: target.gameKind, roomCode: room.roomCode, socketId, account: auth.account, nickname: auth.nickname });
+      emitRoom(room);
+      return;
+    }
+
+    if (target.gameKind === "zha_jin_hua") {
+      const room = zjhRoomManager.joinRoom(socketId, requestedRoomCode, auth.nickname);
+      joinSocketTransportRoom(socketId, { gameKind: "zha_jin_hua", room });
+      logger.info("zjh.room.joined", { gameKind: target.gameKind, roomCode: room.roomCode, socketId, account: auth.account, nickname: auth.nickname });
+      emitZjhRoom(room);
+      return;
+    }
+
+    const room = daBanZiRoomManager.joinRoom(socketId, requestedRoomCode, auth.nickname);
+    joinSocketTransportRoom(socketId, { gameKind: "da_ban_zi", room });
+    logger.info("dbz.room.joined", { gameKind: target.gameKind, roomCode: room.roomCode, socketId, account: auth.account, nickname: auth.nickname });
+    emitDaBanZiRoom(room);
+  }
+
   function hasAccountInGameRoom(account: string, gameKind: GameKind, roomCode: string) {
     for (const [socketId, session] of socketAuth.entries()) {
       if (session.account !== account) {
@@ -1008,23 +1131,7 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
     socket.on("room:join", (payload) => {
       try {
         const auth = requireSocketAuth(socket.id);
-        const requestedRoomCode = payload.roomCode.trim().toUpperCase();
-        const currentRoom = roomManager.getRoomForSocket(socket.id);
-        if (currentRoom) {
-          if (currentRoom.roomCode !== requestedRoomCode) {
-            throw new GameException("ALREADY_IN_ROOM", "你已经在一个房间里。");
-          }
-
-          socket.join(currentRoom.roomCode);
-          logger.info("room.rejoined", { roomCode: currentRoom.roomCode, socketId: socket.id, account: auth.account, nickname: auth.nickname });
-          emitRoom(currentRoom);
-          return;
-        }
-
-        const room = roomManager.joinRoom(socket.id, payload.roomCode, auth.nickname);
-        socket.join(room.roomCode);
-        logger.info("room.joined", { roomCode: room.roomCode, socketId: socket.id, account: auth.account, nickname: auth.nickname });
-        emitRoom(room);
+        joinRoomByCode(socket.id, payload.roomCode, auth);
       } catch (error) {
         handleError(socket.id, error);
       }

@@ -928,18 +928,9 @@ export default function App() {
       setToast("请输入房间号。");
       return;
     }
-    if (selectedGame === "zha_jin_hua") {
-      suppressZjhRoomStateRef.current = false;
-      socket.emit("zjh:room:join", { roomCode, nickname: name });
-      return;
-    }
-    if (selectedGame === "da_ban_zi") {
-      suppressDaBanZiRoomStateRef.current = false;
-      socket.emit("dbz:room:join", { roomCode, nickname: name });
-      return;
-    }
-
     suppressRoomStateRef.current = false;
+    suppressZjhRoomStateRef.current = false;
+    suppressDaBanZiRoomStateRef.current = false;
     socket.emit("room:join", { roomCode, nickname: name });
   }
 
