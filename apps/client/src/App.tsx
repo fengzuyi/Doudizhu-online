@@ -45,6 +45,8 @@ import type {
   ZjhRoundResult
 } from "@doudizhu/shared";
 import { socket } from "./socket.js";
+import { type AppTheme, applyThemeToDocument, persistTheme, readStoredTheme } from "./theme.js";
+import { SettingsDialog } from "./components/SettingsDialog.js";
 import { GameHall } from "./pages/GameHall.js";
 import { LoginPage, type AuthProfile, type LoginPayload, type RegisterPayload } from "./pages/LoginPage.js";
 import { AdminPage } from "./pages/AdminPage.js";
@@ -257,6 +259,8 @@ export default function App() {
   const [zjhCompareReveal, setZjhCompareReveal] = useState<ZjhCompareReveal | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [toast, setToast] = useState<string>("");
+  const [appTheme, setAppTheme] = useState<AppTheme>(() => readStoredTheme());
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [endedNotice, setEndedNotice] = useState<string>("");
   const [zjhEndedNotice, setZjhEndedNotice] = useState<string>("");
   const [daBanZiEndedNotice, setDaBanZiEndedNotice] = useState<string>("");
@@ -375,6 +379,11 @@ export default function App() {
       setGameRecordsBusy(false);
     }
   }, [authToken]);
+
+  useEffect(() => {
+    applyThemeToDocument(appTheme);
+    persistTheme(appTheme);
+  }, [appTheme]);
 
   useEffect(() => {
     roomRef.current = room;
@@ -1049,6 +1058,7 @@ export default function App() {
           onJoinRoom={joinRoom}
           onUnavailable={(gameName) => setToast(`${gameName} 敬请期待。`)}
           onInfo={setToast}
+          onOpenSettings={() => setSettingsOpen(true)}
           onLogout={logout}
           chatMessages={chatMessages}
           chatOnlineCount={chatOnlineCount}
@@ -1063,6 +1073,9 @@ export default function App() {
           onToggleGameRecords={toggleGameRecords}
           onRefreshGameRecords={refreshGameRecords}
         />
+        {settingsOpen && (
+          <SettingsDialog theme={appTheme} onThemeChange={setAppTheme} onClose={() => setSettingsOpen(false)} />
+        )}
         <Toast message={toast} />
       </>
     );
@@ -1085,6 +1098,8 @@ export default function App() {
           onCopyRoomCode={copyRoomCode}
           onLeave={requestLeaveRoom}
           onInfo={setToast}
+          theme={appTheme}
+          onThemeChange={setAppTheme}
           voiceDock={
             <GameVoiceDock
               authToken={authToken}
@@ -1133,6 +1148,7 @@ export default function App() {
           onCopyRoomCode={copyRoomCode}
           onLeave={requestLeaveRoom}
           onInfo={setToast}
+          onOpenSettings={() => setSettingsOpen(true)}
           voiceDock={
             <GameVoiceDock
               authToken={authToken}
@@ -1157,6 +1173,9 @@ export default function App() {
           onSend={sendChatMessage}
           onToggle={toggleGameChat}
         />
+        {settingsOpen && (
+          <SettingsDialog theme={appTheme} onThemeChange={setAppTheme} onClose={() => setSettingsOpen(false)} />
+        )}
         <Toast message={toast} />
       </div>
     );
@@ -1207,7 +1226,7 @@ export default function App() {
           <button className="zen-icon-button" type="button" onClick={() => setToast("通知中心将在正式版开放。")} aria-label="通知">
             <Bell size={18} aria-hidden="true" />
           </button>
-          <button className="zen-icon-button" type="button" onClick={() => setToast("设置将在正式版开放。")} aria-label="设置">
+          <button className="zen-icon-button" type="button" onClick={() => setSettingsOpen(true)} aria-label="设置">
             <Settings size={18} aria-hidden="true" />
           </button>
           <button className="zen-icon-button" type="button" onClick={() => setToast("帮助中心将在正式版开放。")} aria-label="帮助">
@@ -1330,6 +1349,9 @@ export default function App() {
         onSend={sendChatMessage}
         onToggle={toggleGameChat}
       />
+      {settingsOpen && (
+        <SettingsDialog theme={appTheme} onThemeChange={setAppTheme} onClose={() => setSettingsOpen(false)} />
+      )}
       <Toast message={toast} />
     </div>
   );

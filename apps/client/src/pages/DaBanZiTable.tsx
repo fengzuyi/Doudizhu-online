@@ -48,6 +48,7 @@ interface DaBanZiTableProps {
   onCopyRoomCode: () => void;
   onLeave: () => void;
   onInfo: (message: string) => void;
+  onOpenSettings: () => void;
   voiceDock?: ReactNode;
 }
 
@@ -65,6 +66,7 @@ export function DaBanZiTable({
   onCopyRoomCode,
   onLeave,
   onInfo,
+  onOpenSettings,
   voiceDock
 }: DaBanZiTableProps) {
   const self = room.players.find((player) => player.seat === room.selfSeat);
@@ -97,7 +99,7 @@ export function DaBanZiTable({
           <button className="zen-icon-button" type="button" onClick={() => onInfo("通知中心将在正式版开放。")} aria-label="通知">
             <Bell size={18} aria-hidden="true" />
           </button>
-          <button className="zen-icon-button" type="button" onClick={() => onInfo("设置将在正式版开放。")} aria-label="设置">
+          <button className="zen-icon-button" type="button" onClick={onOpenSettings} aria-label="设置">
             <Settings size={18} aria-hidden="true" />
           </button>
           <button className="zen-icon-button" type="button" onClick={() => onInfo("帮助中心将在正式版开放。")} aria-label="帮助">

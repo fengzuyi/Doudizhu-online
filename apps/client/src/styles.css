@@ -7214,3 +7214,171 @@ button.zjh-avatar-frame:disabled {
     width: 42px;
   }
 }
+
+
+/* ===== 全局设置弹窗(皮肤切换) ===== */
+
+.app-settings-dialog {
+  width: min(460px, 100%);
+  display: grid;
+  gap: 18px;
+  border: 1px solid rgba(255, 217, 122, 0.34);
+  border-radius: 10px;
+  padding: 20px;
+  color: #172321;
+  background: rgba(255, 253, 246, 0.96);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.32);
+}
+
+.app-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.app-settings-header h2 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.15;
+}
+
+.app-settings-close {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #2b3b38;
+  background: rgba(23, 35, 33, 0.06);
+}
+
+.app-skin-section {
+  display: grid;
+  gap: 12px;
+}
+
+.app-skin-section h3 {
+  margin: 0;
+  font-size: 15px;
+  color: #667872;
+}
+
+.app-skin-option {
+  min-height: 78px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 14px;
+  border: 1px solid rgba(23, 35, 33, 0.14);
+  border-radius: 10px;
+  padding: 12px 14px;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: none;
+}
+
+.app-skin-option.selected {
+  border-color: rgba(58, 163, 132, 0.9);
+  box-shadow: 0 0 0 2px rgba(58, 163, 132, 0.24);
+}
+
+.app-skin-preview {
+  position: relative;
+  width: 72px;
+  height: 52px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid rgba(23, 35, 33, 0.2);
+  border-radius: 8px;
+}
+
+.app-skin-preview.skin-classic {
+  background:
+    radial-gradient(circle at 50% 36%, rgba(255, 217, 122, 0.5) 0 8%, transparent 26%),
+    linear-gradient(160deg, #176246, #0f4a35 55%, #092e23);
+}
+
+.app-skin-preview.skin-pixel {
+  background-color: #fdf6e9;
+  background-image:
+    linear-gradient(rgba(67, 48, 58, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(67, 48, 58, 0.08) 1px, transparent 1px);
+  background-size: 8px 8px;
+  image-rendering: pixelated;
+}
+
+.app-skin-preview.skin-pixel i {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #43303a;
+}
+
+.app-skin-preview.skin-pixel .swatch-strawberry {
+  left: 8px;
+  top: 8px;
+  background: #ff9fc2;
+}
+
+.app-skin-preview.skin-pixel .swatch-butter {
+  left: 32px;
+  top: 8px;
+  background: #ffd97a;
+}
+
+.app-skin-preview.skin-pixel .swatch-mint {
+  left: 8px;
+  top: 28px;
+  background: #93e0c2;
+}
+
+.app-skin-preview.skin-pixel .swatch-sky {
+  left: 32px;
+  top: 28px;
+  background: #9fd4f5;
+}
+
+.app-skin-info {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 4px;
+}
+
+.app-skin-info strong {
+  color: #172321;
+  font-size: 16px;
+}
+
+.app-skin-info span {
+  color: #667872;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: normal;
+  line-height: 1.4;
+}
+
+.app-skin-state {
+  flex: 0 0 auto;
+  border: 1px solid rgba(58, 163, 132, 0.4);
+  border-radius: 999px;
+  padding: 4px 10px;
+  color: #2f9b77;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.app-skin-option.selected .app-skin-state {
+  color: #ffffff;
+  background: #3aa384;
+}
+
+.app-settings-note {
+  margin: 0;
+  color: #8a9590;
+  font-size: 13px;
+  font-weight: 600;
+}

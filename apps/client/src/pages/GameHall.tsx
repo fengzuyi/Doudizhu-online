@@ -27,6 +27,7 @@ interface GameHallProps {
   onJoinRoom: () => void;
   onUnavailable: (gameName: string) => void;
   onInfo: (message: string) => void;
+  onOpenSettings: () => void;
   onLogout: () => void;
   chatMessages: ChatMessage[];
   chatOnlineCount: number;
@@ -84,6 +85,7 @@ export function GameHall({
   onJoinRoom,
   onUnavailable,
   onInfo,
+  onOpenSettings,
   onLogout,
   chatMessages,
   chatOnlineCount,
@@ -202,7 +204,7 @@ export function GameHall({
             <button className="friends-icon-button" type="button" onClick={() => onInfo("通知中心将在正式版开放。")} aria-label="通知">
               <Bell size={18} aria-hidden="true" />
             </button>
-            <button className="friends-icon-button" type="button" onClick={() => onInfo("设置将在正式版开放。")} aria-label="设置">
+            <button className="friends-icon-button" type="button" onClick={onOpenSettings} aria-label="设置">
               <Settings size={18} aria-hidden="true" />
             </button>
             <button className="friends-logout-button" type="button" onClick={onLogout}>

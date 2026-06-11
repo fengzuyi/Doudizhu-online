@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { getZjhBetTier, ZJH_BLIND_BETS, ZJH_SEEN_BETS } from "@doudizhu/shared";
 import type { Card, ZjhCompareReveal, ZjhPlayerView, ZjhRoomView } from "@doudizhu/shared";
+import type { AppTheme } from "../theme.js";
 
 const ZJH_ASSET_BASE = "/assets/zhajinhua";
 const ZJH_CARD_BACK_SRC = `${ZJH_ASSET_BASE}/card_back/red_back_line.png`;
@@ -177,6 +178,8 @@ interface ZhaJinHuaTableProps {
   onCopyRoomCode: () => void;
   onLeave: () => void;
   onInfo: (message: string) => void;
+  theme: AppTheme;
+  onThemeChange: (theme: AppTheme) => void;
   voiceDock?: ReactNode;
 }
 
@@ -192,6 +195,8 @@ export function ZhaJinHuaTable({
   onCopyRoomCode,
   onLeave,
   onInfo,
+  theme,
+  onThemeChange,
   voiceDock
 }: ZhaJinHuaTableProps) {
   const self = room.players.find((player) => player.seat === room.selfSeat);
@@ -567,6 +572,8 @@ export function ZhaJinHuaTable({
           onSoundEnabledChange={setSoundEnabled}
           onSoundVolumeChange={setSoundVolume}
           onPromoRailsEnabledChange={setPromoRailsEnabled}
+          theme={theme}
+          onThemeChange={onThemeChange}
           onClose={() => setSettingsOpen(false)}
         />
       )}
@@ -598,6 +605,8 @@ function ZjhSettingsDialog({
   onSoundEnabledChange,
   onSoundVolumeChange,
   onPromoRailsEnabledChange,
+  theme,
+  onThemeChange,
   onClose
 }: {
   musicEnabled: boolean;
@@ -610,6 +619,8 @@ function ZjhSettingsDialog({
   onSoundEnabledChange: (enabled: boolean) => void;
   onSoundVolumeChange: (volume: number) => void;
   onPromoRailsEnabledChange: (enabled: boolean) => void;
+  theme: AppTheme;
+  onThemeChange: (theme: AppTheme) => void;
   onClose: () => void;
 }) {
   const volumePercent = Math.round(musicVolume * 100);
@@ -693,6 +704,21 @@ function ZjhSettingsDialog({
             aria-pressed={promoRailsEnabled}
           >
             {promoRailsEnabled ? "隐藏" : "显示"}
+          </button>
+        </div>
+
+        <div className="zjh-setting-row">
+          <div>
+            <strong>皮肤</strong>
+            <span>{theme === "pixel" ? "像素小屋" : "经典绒布"}</span>
+          </div>
+          <button
+            className="zjh-toggle-button is-start"
+            type="button"
+            onClick={() => onThemeChange(theme === "pixel" ? "classic" : "pixel")}
+            aria-pressed={theme === "pixel"}
+          >
+            {theme === "pixel" ? "切回经典" : "像素小屋"}
           </button>
         </div>
       </section>

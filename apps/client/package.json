@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@doudizhu/shared": "file:../../packages/shared",
+    "@fontsource/fusion-pixel-12px-proportional-sc": "^5.2.5",
     "@vitejs/plugin-react": "^4.3.4",
     "livekit-client": "^2.19.1",
     "lucide-react": "^0.468.0",

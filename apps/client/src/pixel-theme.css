@@ -1,0 +1,580 @@
+/* ============================================================
+   像素小屋皮肤(data-theme="pixel")
+   奶油糖果基调:奶白底 + 8px 像素网格纹理 + 糖果色
+   (草莓粉 / 奶黄 / 薄荷 / 天蓝)
+   网格底纹技法译自 21st.dev「Pixel Grid Pattern」:
+   双向 1px linear-gradient + 8px 平铺 + image-rendering: pixelated
+   字体:缝合像素字体(Fusion Pixel,OFL 协议,@fontsource 简中包)
+   ============================================================ */
+
+:root[data-theme="pixel"] {
+  color: #43303a;
+  background: #fdf6e9;
+  --px-font: "Fusion Pixel 12px Proportional SC", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  --px-cream: #fdf6e9;
+  --px-cream-deep: #f6ead2;
+  --px-ink: #43303a;
+  --px-strawberry: #ff9fc2;
+  --px-strawberry-deep: #e2557f;
+  --px-butter: #ffd97a;
+  --px-butter-deep: #e8a93d;
+  --px-mint: #93e0c2;
+  --px-mint-deep: #2f9b77;
+  --px-sky: #9fd4f5;
+  --px-sky-deep: #4795cd;
+  --px-shadow: 4px 4px 0 rgba(67, 48, 58, 0.92);
+  --px-shadow-sm: 3px 3px 0 rgba(67, 48, 58, 0.92);
+  --px-grid:
+    linear-gradient(rgba(226, 85, 127, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(71, 149, 205, 0.055) 1px, transparent 1px);
+  /* 经典皮肤变量重映射:绒布转为莓果可可,金色转奶黄 */
+  --felt: #7c4a62;
+  --felt-deep: #5a3247;
+  --felt-soft: #96617b;
+  --wood: #8a5a4a;
+  --wood-deep: #5f3a2e;
+  --gold: #e8a93d;
+  --gold-bright: #ffd97a;
+  --red: #e2557f;
+  --red-deep: #b03a5e;
+  --ink: #43303a;
+  --paper: #fdf6e9;
+  --paper-soft: #f6ead2;
+  --muted: #8d7a86;
+  --line: rgba(67, 48, 58, 0.34);
+  --dark-line: rgba(67, 48, 58, 0.22);
+  --shadow-soft: 4px 4px 0 rgba(67, 48, 58, 0.2);
+  --shadow-hard: 6px 6px 0 rgba(67, 48, 58, 0.28);
+}
+
+/* ---------- 8px 像素网格底纹 ---------- */
+
+html[data-theme="pixel"],
+[data-theme="pixel"] body {
+  background-color: var(--px-cream);
+  background-image: var(--px-grid);
+  background-size: 8px 8px;
+  image-rendering: pixelated;
+}
+
+[data-theme="pixel"] .hall-page,
+[data-theme="pixel"] .hall-page.friends-hall,
+[data-theme="pixel"] .login-page,
+[data-theme="pixel"] .zen-game-shell {
+  color: var(--px-ink);
+  background-color: var(--px-cream);
+  background-image: var(--px-grid);
+  background-size: 8px 8px;
+}
+
+/* 夜空装饰(流星/月亮/星云)在糖果小屋里全部熄灯 */
+[data-theme="pixel"] .hall-shooting-stars,
+[data-theme="pixel"] .login-space-scene,
+[data-theme="pixel"] .login-moon,
+[data-theme="pixel"] .login-star-stream {
+  display: none;
+}
+
+[data-theme="pixel"] .hall-page.friends-hall::before,
+[data-theme="pixel"] .hall-page.friends-hall::after,
+[data-theme="pixel"] .friends-hall-app::before,
+[data-theme="pixel"] .friends-hall-app::after,
+[data-theme="pixel"] .login-page::before,
+[data-theme="pixel"] .login-page::after {
+  content: none;
+}
+
+/* ---------- 中文像素字体:标题/按钮/导航/统计数字/标签 ---------- */
+
+[data-theme="pixel"] h1,
+[data-theme="pixel"] h2,
+[data-theme="pixel"] h3,
+[data-theme="pixel"] h4,
+[data-theme="pixel"] button,
+[data-theme="pixel"] label,
+[data-theme="pixel"] select,
+[data-theme="pixel"] .eyebrow,
+[data-theme="pixel"] .connection-pill,
+[data-theme="pixel"] .zen-pill,
+[data-theme="pixel"] .dbz-pill,
+[data-theme="pixel"] .zen-brand-title,
+[data-theme="pixel"] .dbz-brand,
+[data-theme="pixel"] .friends-section-head span,
+[data-theme="pixel"] .friends-chat-head span,
+[data-theme="pixel"] .friends-record-head span,
+[data-theme="pixel"] .friends-record-item b,
+[data-theme="pixel"] .friends-record-item time,
+[data-theme="pixel"] .toast,
+[data-theme="pixel"] .app-skin-state {
+  font-family: var(--px-font);
+  letter-spacing: 0.02em;
+}
+
+/* ---------- 按钮:硬 2px 描边 + 错位块状阴影 + 「咔哒」按压 ---------- */
+
+[data-theme="pixel"] button {
+  border: 2px solid var(--px-ink);
+  border-radius: 2px;
+  background: var(--px-cream);
+  color: var(--px-ink);
+  box-shadow: var(--px-shadow-sm);
+  transition:
+    transform 70ms steps(2, end),
+    box-shadow 70ms steps(2, end),
+    background 120ms ease;
+}
+
+[data-theme="pixel"] button:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  border-color: var(--px-ink);
+  background: var(--px-cream);
+  box-shadow: 4px 4px 0 rgba(67, 48, 58, 0.92);
+}
+
+[data-theme="pixel"] button:active:not(:disabled) {
+  transform: translate(3px, 3px);
+  box-shadow: 0 0 0 rgba(67, 48, 58, 0.92);
+}
+
+[data-theme="pixel"] button:disabled {
+  opacity: 0.5;
+  box-shadow: var(--px-shadow-sm);
+}
+
+[data-theme="pixel"] button:focus-visible,
+[data-theme="pixel"] input:focus-visible,
+[data-theme="pixel"] select:focus-visible {
+  outline: 3px solid var(--px-sky-deep);
+  outline-offset: 2px;
+}
+
+[data-theme="pixel"] .primary-btn,
+[data-theme="pixel"] .friends-game-card button {
+  background: var(--px-butter);
+  color: var(--px-ink);
+}
+
+[data-theme="pixel"] .primary-btn:hover:not(:disabled),
+[data-theme="pixel"] .friends-game-card button:hover:not(:disabled) {
+  background: var(--px-butter);
+}
+
+[data-theme="pixel"] .friends-primary-button,
+[data-theme="pixel"] .login-button {
+  background: var(--px-strawberry);
+  color: var(--px-ink);
+}
+
+[data-theme="pixel"] .friends-primary-button:hover:not(:disabled),
+[data-theme="pixel"] .login-button:hover:not(:disabled) {
+  background: var(--px-strawberry);
+  color: var(--px-ink);
+}
+
+[data-theme="pixel"] .ghost-btn,
+[data-theme="pixel"] .icon-btn,
+[data-theme="pixel"] .friends-icon-button,
+[data-theme="pixel"] .friends-logout-button,
+[data-theme="pixel"] .friends-secondary-button,
+[data-theme="pixel"] .zen-icon-button,
+[data-theme="pixel"] .zen-leave-button {
+  background: var(--px-cream);
+  color: var(--px-ink);
+}
+
+[data-theme="pixel"] .friends-icon-button:hover:not(:disabled),
+[data-theme="pixel"] .friends-logout-button:hover:not(:disabled),
+[data-theme="pixel"] .friends-secondary-button:hover:not(:disabled) {
+  border-color: var(--px-ink);
+  background: var(--px-sky);
+  color: var(--px-ink);
+}
+
+[data-theme="pixel"] .zjh-toggle-button.is-start {
+  background: var(--px-mint);
+  color: var(--px-ink);
+}
+
+[data-theme="pixel"] .zjh-toggle-button.is-stop {
+  background: var(--px-strawberry);
+  color: var(--px-ink);
+}
+
+/* ---------- 输入框 ---------- */
+
+[data-theme="pixel"] input,
+[data-theme="pixel"] select,
+[data-theme="pixel"] .friends-room-form input,
+[data-theme="pixel"] .friends-chat-form input,
+[data-theme="pixel"] .friends-room-select select {
+  border: 2px solid var(--px-ink);
+  border-radius: 2px;
+  background: #fffdf6;
+  color: var(--px-ink);
+  box-shadow: inset 2px 2px 0 rgba(67, 48, 58, 0.1);
+}
+
+[data-theme="pixel"] input::placeholder,
+[data-theme="pixel"] .friends-room-form input::placeholder,
+[data-theme="pixel"] .friends-chat-form input::placeholder {
+  color: var(--px-muted, #8d7a86);
+}
+
+[data-theme="pixel"] label,
+[data-theme="pixel"] .friends-room-form label {
+  color: var(--px-ink);
+}
+
+/* ---------- 通用卡片 / 弹窗 / 提示 ---------- */
+
+[data-theme="pixel"] .seat-panel,
+[data-theme="pixel"] .turn-log,
+[data-theme="pixel"] .result-dialog,
+[data-theme="pixel"] .leave-confirm-dialog,
+[data-theme="pixel"] .app-settings-dialog,
+[data-theme="pixel"] .zjh-settings-dialog,
+[data-theme="pixel"] .friends-record-popover {
+  border: 2px solid var(--px-ink);
+  border-radius: 2px;
+  background: var(--px-cream);
+  box-shadow: 6px 6px 0 rgba(67, 48, 58, 0.5);
+}
+
+[data-theme="pixel"] .modal-backdrop {
+  background: rgba(67, 48, 58, 0.62);
+}
+
+[data-theme="pixel"] .toast {
+  border: 2px solid var(--px-ink);
+  border-radius: 2px;
+  background: var(--px-butter);
+  color: var(--px-ink);
+  box-shadow: var(--px-shadow);
+}
+
+[data-theme="pixel"] .connection-pill {
+  border: 2px solid var(--px-ink);
+  border-radius: 2px;
+  background: var(--px-cream);
+  color: var(--px-ink);
+  box-shadow: 2px 2px 0 rgba(67, 48, 58, 0.9);
+}
+
+[data-theme="pixel"] .connection-pill.online {
+  background: var(--px-mint);
+  color: var(--px-ink);
+}
+
+[data-theme="pixel"] .connection-pill.offline {
+  background: var(--px-strawberry);
+  color: var(--px-ink);
+}
+
+/* ---------- 大厅:奶油糖果小屋 ---------- */
+
+[data-theme="pixel"] .friends-topbar,
+[data-theme="pixel"] .friends-panel {
+  border: 2px solid var(--px-ink);
+  border-radius: 2px;
+  background: rgba(255, 253, 246, 0.94);
+  box-shadow: var(--px-shadow);
+  backdrop-filter: none;
+}
+
+[data-theme="pixel"] .friends-brand h1 {
+  font-family: var(--px-font);
+  color: var(--px-ink);
+  -webkit-text-stroke: 0;
+  background: none;
+  -webkit-background-clip: initial;
+  background-clip: initial;
+  text-shadow: 2px 2px 0 var(--px-strawberry);
+}
+
+[data-theme="pixel"] .friends-brand-logo {
+  border: 2px solid var(--px-ink);
+  border-radius: 2px;
+  background: var(--px-mint);
+  color: var(--px-ink);
+  box-shadow: 2px 2px 0 rgba(67, 48, 58, 0.9);
+}
+
+[data-theme="pixel"] .friends-avatar {
+  border: 2px solid var(--px-ink);
+  border-radius: 2px;
+  background: var(--px-sky);
+  color: var(--px-ink);
+  box-shadow: 2px 2px 0 rgba(67, 48, 58, 0.9);
+}
+
+[data-theme="pixel"] .friends-profile-card,
+[data-theme="pixel"] .friends-chat-card {
+  border: 2px solid var(--px-ink);
+  border-radius: 2px;
+  background: rgba(255, 253, 246, 0.9);
+  box-shadow: var(--px-shadow-sm);
+}
+
+[data-theme="pixel"] .friends-room-card {
+  border: 2px solid var(--px-ink);
+  border-radius: 2px;
+  background: var(--px-cream-deep);
+  box-shadow: var(--px-shadow-sm);
+}
+
+[data-theme="pixel"] .friends-profile-card h2,
+[data-theme="pixel"] .friends-section-head h3,
+[data-theme="pixel"] .friends-chat-card h3,
+[data-theme="pixel"] .friends-room-card h3,
+[data-theme="pixel"] .friends-record-head h3,
+[data-theme="pixel"] .friends-messages strong {
+  color: var(--px-ink);
+}
+
+[data-theme="pixel"] .friends-profile-card p,
+[data-theme="pixel"] .friends-section-head span,
+[data-theme="pixel"] .friends-chat-head span,
+[data-theme="pixel"] .friends-room-form label,
+[data-theme="pixel"] .friends-messages p {
+  color: #6d5a64;
+}
+
+/* 轻度游戏化 HUD:小屋角标与生命值小心心 */
+[data-theme="pixel"] .friends-section-head h3::before {
+  content: "▶ ";
+  color: var(--px-mint-deep);
+}
+
+[data-theme="pixel"] .friends-profile-card h2::after {
+  content: " ♥♥♥";
+  font-size: 0.7em;
+  color: var(--px-strawberry-deep);
+  vertical-align: 2px;
+}
+
+[data-theme="pixel"] .friends-chat-head h3::after {
+  content: "_";
+  color: var(--px-mint-deep);
+  animation: px-blink 1.2s steps(2, jump-none) infinite;
+}
+
+@keyframes px-blink {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+/* ---------- 大厅游戏卡:糖果色块 + 硬描边 ---------- */
+
+[data-theme="pixel"] .friends-game-card {
+  border: 2px solid var(--px-ink);
+  border-radius: 2px;
+  box-shadow: var(--px-shadow);
+}
+
+[data-theme="pixel"] .friends-game-card::before {
+  background: none;
+}
+
+[data-theme="pixel"] .friends-game-card.selected {
+  border-color: var(--px-ink);
+  box-shadow:
+    0 0 0 3px var(--px-butter),
+    var(--px-shadow);
+}
+
+[data-theme="pixel"] .friends-game-card.selected h4::before {
+  content: "★ ";
+  color: var(--px-butter);
+}
+
+[data-theme="pixel"] .friends-game-card button {
+  border: 2px solid var(--px-ink);
+  border-radius: 2px;
+  box-shadow: 2px 2px 0 rgba(67, 48, 58, 0.9);
+}
+
+[data-theme="pixel"] .friends-game-card.game-doudizhu button {
+  background: var(--px-strawberry);
+}
+
+[data-theme="pixel"] .friends-game-card.game-zha_jin_hua button {
+  background: var(--px-butter);
+}
+
+[data-theme="pixel"] .friends-game-card.game-da_ban_zi button {
+  background: var(--px-mint);
+}
+
+[data-theme="pixel"] .friends-game-card.game-mahjong button {
+  background: var(--px-sky);
+}
+
+/* ---------- 大厅记录弹层与聊天 ---------- */
+
+[data-theme="pixel"] .friends-record-item {
+  border: 2px solid rgba(67, 48, 58, 0.4);
+  border-radius: 2px;
+  background: #fffdf6;
+}
+
+[data-theme="pixel"] .friends-record-item strong,
+[data-theme="pixel"] .friends-record-item b {
+  color: var(--px-ink);
+}
+
+[data-theme="pixel"] .friends-messages p.from-self {
+  border-left: 4px solid var(--px-strawberry);
+  padding-left: 8px;
+}
+
+/* ---------- 登录页 ---------- */
+
+[data-theme="pixel"] .login-hero h1 {
+  font-family: var(--px-font);
+  color: var(--px-ink);
+  -webkit-text-stroke: 0;
+  background: none;
+  -webkit-background-clip: initial;
+  background-clip: initial;
+  text-shadow: 3px 3px 0 var(--px-strawberry);
+}
+
+[data-theme="pixel"] .login-hero h1::before,
+[data-theme="pixel"] .login-hero h1::after {
+  content: none;
+}
+
+[data-theme="pixel"] .login-hero p {
+  color: #6d5a64;
+  text-shadow: none;
+}
+
+[data-theme="pixel"] .login-card-panel {
+  border: 2px solid var(--px-ink);
+  border-radius: 2px;
+  background: rgba(255, 253, 246, 0.96);
+  box-shadow: var(--px-shadow);
+  color: var(--px-ink);
+}
+
+[data-theme="pixel"] .login-card-heading h2,
+[data-theme="pixel"] .login-card-heading p,
+[data-theme="pixel"] .login-page h2 {
+  color: var(--px-ink);
+}
+
+[data-theme="pixel"] .login-form-group input {
+  border: 2px solid var(--px-ink);
+  background: #fffdf6;
+  color: var(--px-ink);
+}
+
+/* ---------- 斗地主桌(zen) ---------- */
+
+[data-theme="pixel"] .zen-game-header {
+  border-bottom: 2px solid var(--px-ink);
+  background: rgba(255, 253, 246, 0.96);
+}
+
+[data-theme="pixel"] .zen-pill,
+[data-theme="pixel"] .dbz-pill {
+  border: 2px solid var(--px-ink);
+  border-radius: 2px;
+  background: var(--px-cream-deep);
+  color: var(--px-ink);
+}
+
+[data-theme="pixel"] .zen-offline-banner {
+  border: 2px solid var(--px-ink);
+  background: var(--px-strawberry);
+  color: var(--px-ink);
+}
+
+/* ---------- 设置弹窗(像素化) ---------- */
+
+[data-theme="pixel"] .app-settings-header h2,
+[data-theme="pixel"] .app-skin-info strong {
+  color: var(--px-ink);
+}
+
+[data-theme="pixel"] .app-skin-option {
+  border: 2px solid var(--px-ink);
+  border-radius: 2px;
+  background: #fffdf6;
+  box-shadow: var(--px-shadow-sm);
+}
+
+[data-theme="pixel"] .app-skin-option.selected {
+  border-color: var(--px-ink);
+  background: var(--px-cream-deep);
+  box-shadow:
+    0 0 0 3px var(--px-mint),
+    var(--px-shadow-sm);
+}
+
+[data-theme="pixel"] .app-skin-preview {
+  border: 2px solid var(--px-ink);
+  border-radius: 2px;
+}
+
+[data-theme="pixel"] .app-skin-state {
+  border: 2px solid var(--px-ink);
+  border-radius: 2px;
+  color: var(--px-ink);
+}
+
+[data-theme="pixel"] .app-skin-option.selected .app-skin-state {
+  background: var(--px-mint);
+  color: var(--px-ink);
+}
+
+[data-theme="pixel"] .app-settings-close,
+[data-theme="pixel"] .zjh-settings-close {
+  border-radius: 2px;
+  background: var(--px-cream-deep);
+}
+
+/* ---------- 滚动条 / 选区 ---------- */
+
+[data-theme="pixel"] ::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+[data-theme="pixel"] ::-webkit-scrollbar-track {
+  background: var(--px-cream-deep);
+}
+
+[data-theme="pixel"] ::-webkit-scrollbar-thumb {
+  border: 2px solid var(--px-ink);
+  border-radius: 0;
+  background: var(--px-mint);
+}
+
+[data-theme="pixel"] ::selection {
+  background: var(--px-strawberry);
+  color: var(--px-ink);
+}
+
+/* ---------- reduced-motion:关闭位移手感与闪烁 ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="pixel"] button {
+    transition: none;
+  }
+
+  [data-theme="pixel"] button:hover:not(:disabled),
+  [data-theme="pixel"] button:active:not(:disabled) {
+    transform: none;
+    box-shadow: var(--px-shadow-sm);
+  }
+
+  [data-theme="pixel"] .friends-chat-head h3::after {
+    animation: none;
+  }
+}
