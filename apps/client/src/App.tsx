@@ -34,6 +34,9 @@ import type {
   DaBanZiPartnerCallOption,
   DaBanZiRoomView,
   DaBanZiRoundResult,
+  FighterInputState,
+  FighterRoomView,
+  FighterRoundResult,
   GameKind,
   GameSessionRecord,
   PlayerSeat,
@@ -52,12 +55,13 @@ import { LoginPage, type AuthProfile, type LoginPayload, type RegisterPayload } 
 import { AdminPage } from "./pages/AdminPage.js";
 import { ZhaJinHuaTable } from "./pages/ZhaJinHuaTable.js";
 import { DaBanZiTable } from "./pages/DaBanZiTable.js";
+import { FighterTable } from "./pages/FighterTable.js";
 
 const AUTH_STORAGE_KEY = "doudizhu:authProfile";
 const AUTH_TOKEN_STORAGE_KEY = "doudizhu:authToken";
 const ROOM_SESSION_KEY = "doudizhu:activeRoom";
 
-type ActiveView = "login" | "hall" | "doudizhu" | "zha_jin_hua" | "da_ban_zi";
+type ActiveView = "login" | "hall" | "doudizhu" | "zha_jin_hua" | "da_ban_zi" | "fighter";
 
 function readStoredAuth(): AuthProfile | null {
   try {
@@ -256,6 +260,7 @@ export default function App() {
   const [room, setRoom] = useState<RoomView | null>(null);
   const [zjhRoom, setZjhRoom] = useState<ZjhRoomView | null>(null);
   const [daBanZiRoom, setDaBanZiRoom] = useState<DaBanZiRoomView | null>(null);
+  const [fighterRoom, setFighterRoom] = useState<FighterRoomView | null>(null);
   const [zjhCompareReveal, setZjhCompareReveal] = useState<ZjhCompareReveal | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [toast, setToast] = useState<string>("");
@@ -264,6 +269,7 @@ export default function App() {
   const [endedNotice, setEndedNotice] = useState<string>("");
   const [zjhEndedNotice, setZjhEndedNotice] = useState<string>("");
   const [daBanZiEndedNotice, setDaBanZiEndedNotice] = useState<string>("");
+  const [fighterEndedNotice, setFighterEndedNotice] = useState<string>("");
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [gameHeaderCollapsed, setGameHeaderCollapsed] = useState(true);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -279,28 +285,33 @@ export default function App() {
   const roomRef = useRef<RoomView | null>(null);
   const zjhRoomRef = useRef<ZjhRoomView | null>(null);
   const daBanZiRoomRef = useRef<DaBanZiRoomView | null>(null);
+  const fighterRoomRef = useRef<FighterRoomView | null>(null);
   const activeViewRef = useRef<ActiveView>(activeView);
   const gameChatOpenRef = useRef(gameChatOpen);
   const authAccountRef = useRef(authProfile?.account ?? "");
   const suppressRoomStateRef = useRef(false);
   const suppressZjhRoomStateRef = useRef(false);
   const suppressDaBanZiRoomStateRef = useRef(false);
+  const suppressFighterRoomStateRef = useRef(false);
 
   const resetRoomSession = useCallback((message?: string) => {
     roomRef.current = null;
     zjhRoomRef.current = null;
     daBanZiRoomRef.current = null;
+    fighterRoomRef.current = null;
     clearStoredRoomSession();
     setLeaveConfirmOpen(false);
     setRoom(null);
     setZjhRoom(null);
     setDaBanZiRoom(null);
+    setFighterRoom(null);
     setZjhCompareReveal(null);
     setZjhCompareReveal(null);
     setSelectedIds(new Set());
     setEndedNotice("");
     setZjhEndedNotice("");
     setDaBanZiEndedNotice("");
+    setFighterEndedNotice("");
     setRoomCodeInput("");
     setActiveView("hall");
     if (message) {
@@ -313,9 +324,11 @@ export default function App() {
     const hadRoom = Boolean(roomRef.current);
     const hadZjhRoom = Boolean(zjhRoomRef.current);
     const hadDaBanZiRoom = Boolean(daBanZiRoomRef.current);
+    const hadFighterRoom = Boolean(fighterRoomRef.current);
     roomRef.current = null;
     zjhRoomRef.current = null;
     daBanZiRoomRef.current = null;
+    fighterRoomRef.current = null;
     if (hadRoom) {
       suppressRoomStateRef.current = true;
       socket.emit("room:leave");
@@ -328,6 +341,10 @@ export default function App() {
       suppressDaBanZiRoomStateRef.current = true;
       socket.emit("dbz:room:leave");
     }
+    if (hadFighterRoom) {
+      suppressFighterRoomStateRef.current = true;
+      socket.emit("fighter:room:leave");
+    }
     clearStoredAuth();
     clearStoredRoomSession();
     setAuthProfile(null);
@@ -337,10 +354,12 @@ export default function App() {
     setRoom(null);
     setZjhRoom(null);
     setDaBanZiRoom(null);
+    setFighterRoom(null);
     setSelectedIds(new Set());
     setEndedNotice("");
     setZjhEndedNotice("");
     setDaBanZiEndedNotice("");
+    setFighterEndedNotice("");
     setChatMessages([]);
     setChatOnlineCount(0);
     setChatJoined(false);
@@ -398,6 +417,10 @@ export default function App() {
   }, [daBanZiRoom]);
 
   useEffect(() => {
+    fighterRoomRef.current = fighterRoom;
+  }, [fighterRoom]);
+
+  useEffect(() => {
     activeViewRef.current = activeView;
     if (activeView === "hall" || activeView === "login") {
       setGameChatUnreadCount(0);
@@ -422,7 +445,7 @@ export default function App() {
 
     function onDisconnect() {
       setConnected(false);
-      if (roomRef.current || zjhRoomRef.current || daBanZiRoomRef.current) {
+      if (roomRef.current || zjhRoomRef.current || daBanZiRoomRef.current || fighterRoomRef.current) {
         setToast("连接已断开，正在尝试重连房间。");
         return;
       }
@@ -439,10 +462,12 @@ export default function App() {
       roomRef.current = roomView;
       zjhRoomRef.current = null;
       daBanZiRoomRef.current = null;
+      fighterRoomRef.current = null;
       rememberRoomSession(roomView.roomCode);
       setRoom(roomView);
       setZjhRoom(null);
       setDaBanZiRoom(null);
+      setFighterRoom(null);
       setActiveView("doudizhu");
       setSelectedIds(new Set());
       if (roomView.phase !== "ended") {
@@ -459,10 +484,12 @@ export default function App() {
       zjhRoomRef.current = roomView;
       roomRef.current = null;
       daBanZiRoomRef.current = null;
+      fighterRoomRef.current = null;
       rememberRoomSession(`zjh:${roomView.roomCode}`);
       setZjhRoom(roomView);
       setRoom(null);
       setDaBanZiRoom(null);
+      setFighterRoom(null);
       setActiveView("zha_jin_hua");
       setSelectedIds(new Set());
       if (roomView.phase !== "ended") {
@@ -479,14 +506,38 @@ export default function App() {
       daBanZiRoomRef.current = roomView;
       roomRef.current = null;
       zjhRoomRef.current = null;
+      fighterRoomRef.current = null;
       rememberRoomSession(`dbz:${roomView.roomCode}`);
       setDaBanZiRoom(roomView);
       setRoom(null);
       setZjhRoom(null);
+      setFighterRoom(null);
       setActiveView("da_ban_zi");
       setSelectedIds(new Set());
       if (roomView.phase !== "ended") {
         setDaBanZiEndedNotice("");
+      }
+    }
+
+    function onFighterRoomState({ roomView }: { roomView: FighterRoomView }) {
+      if (suppressFighterRoomStateRef.current) {
+        suppressFighterRoomStateRef.current = false;
+        return;
+      }
+
+      fighterRoomRef.current = roomView;
+      roomRef.current = null;
+      zjhRoomRef.current = null;
+      daBanZiRoomRef.current = null;
+      rememberRoomSession(`fighter:${roomView.roomCode}`);
+      setFighterRoom(roomView);
+      setRoom(null);
+      setZjhRoom(null);
+      setDaBanZiRoom(null);
+      setActiveView("fighter");
+      setSelectedIds(new Set());
+      if (roomView.phase !== "ended") {
+        setFighterEndedNotice("");
       }
     }
 
@@ -524,6 +575,14 @@ export default function App() {
         setDaBanZiEndedNotice(message);
       } else if (result) {
         setDaBanZiEndedNotice(result.winnerLabel);
+      }
+    }
+
+    function onFighterGameEnded({ result, message }: { result?: FighterRoundResult; message?: string }) {
+      if (message) {
+        setFighterEndedNotice(message);
+      } else if (result) {
+        setFighterEndedNotice(result.winnerNickname ? `${result.winnerNickname} 获胜` : result.reason);
       }
     }
 
@@ -565,11 +624,13 @@ export default function App() {
     socket.on("room:state", onRoomState);
     socket.on("zjh:room:state", onZjhRoomState);
     socket.on("dbz:room:state", onDaBanZiRoomState);
+    socket.on("fighter:room:state", onFighterRoomState);
     socket.on("zjh:compare:reveal", onZjhCompareReveal);
     socket.on("game:error", onGameError);
     socket.on("game:ended", onGameEnded);
     socket.on("zjh:game:ended", onZjhGameEnded);
     socket.on("dbz:game:ended", onDaBanZiGameEnded);
+    socket.on("fighter:game:ended", onFighterGameEnded);
     socket.on("chat:state", onChatState);
     socket.on("chat:message", onChatMessage);
     socket.on("chat:error", onChatError);
@@ -581,11 +642,13 @@ export default function App() {
       socket.off("room:state", onRoomState);
       socket.off("zjh:room:state", onZjhRoomState);
       socket.off("dbz:room:state", onDaBanZiRoomState);
+      socket.off("fighter:room:state", onFighterRoomState);
       socket.off("zjh:compare:reveal", onZjhCompareReveal);
       socket.off("game:error", onGameError);
       socket.off("game:ended", onGameEnded);
       socket.off("zjh:game:ended", onZjhGameEnded);
       socket.off("dbz:game:ended", onDaBanZiGameEnded);
+      socket.off("fighter:game:ended", onFighterGameEnded);
       socket.off("chat:state", onChatState);
       socket.off("chat:message", onChatMessage);
       socket.off("chat:error", onChatError);
@@ -830,6 +893,10 @@ export default function App() {
       suppressDaBanZiRoomStateRef.current = true;
       socket.emit("dbz:room:leave");
     }
+    if (fighterRoom) {
+      suppressFighterRoomStateRef.current = true;
+      socket.emit("fighter:room:leave");
+    }
     if (authToken) {
       requestJson<{ ok: boolean }>("/api/auth/logout", {
         method: "POST",
@@ -844,15 +911,18 @@ export default function App() {
     roomRef.current = null;
     zjhRoomRef.current = null;
     daBanZiRoomRef.current = null;
+    fighterRoomRef.current = null;
     setRoom(null);
     setZjhRoom(null);
     setDaBanZiRoom(null);
+    setFighterRoom(null);
     setSelectedIds(new Set());
     setRoomCodeInput("");
     setNickname("");
     setEndedNotice("");
     setZjhEndedNotice("");
     setDaBanZiEndedNotice("");
+    setFighterEndedNotice("");
     setLeaveConfirmOpen(false);
     setChatMessages([]);
     setChatOnlineCount(0);
@@ -870,7 +940,10 @@ export default function App() {
 
   function leaveRoom() {
     setLeaveConfirmOpen(false);
-    if (activeView === "da_ban_zi" || daBanZiRoom) {
+    if (activeView === "fighter" || fighterRoom) {
+      suppressFighterRoomStateRef.current = true;
+      socket.emit("fighter:room:leave");
+    } else if (activeView === "da_ban_zi" || daBanZiRoom) {
       suppressDaBanZiRoomStateRef.current = true;
       socket.emit("dbz:room:leave");
     } else if (activeView === "zha_jin_hua" || zjhRoom) {
@@ -888,7 +961,8 @@ export default function App() {
       room?.phase === "bidding" ||
       room?.phase === "playing" ||
       zjhRoom?.phase === "playing" ||
-      (daBanZiRoom && daBanZiRoom.phase !== "lobby" && daBanZiRoom.phase !== "ended")
+      (daBanZiRoom && daBanZiRoom.phase !== "lobby" && daBanZiRoom.phase !== "ended") ||
+      (fighterRoom && (fighterRoom.phase === "countdown" || fighterRoom.phase === "fighting"))
     ) {
       setLeaveConfirmOpen(true);
       return;
@@ -922,6 +996,11 @@ export default function App() {
       socket.emit("dbz:room:create", { nickname: name });
       return;
     }
+    if (selectedGame === "fighter") {
+      suppressFighterRoomStateRef.current = false;
+      socket.emit("fighter:room:create", { nickname: name });
+      return;
+    }
 
     suppressRoomStateRef.current = false;
     socket.emit("room:create", { nickname: name });
@@ -940,6 +1019,7 @@ export default function App() {
     suppressRoomStateRef.current = false;
     suppressZjhRoomStateRef.current = false;
     suppressDaBanZiRoomStateRef.current = false;
+    suppressFighterRoomStateRef.current = false;
     socket.emit("room:join", { roomCode, nickname: name });
   }
 
@@ -968,7 +1048,7 @@ export default function App() {
   }
 
   async function copyRoomCode() {
-    const code = room?.roomCode ?? zjhRoom?.roomCode ?? daBanZiRoom?.roomCode;
+    const code = room?.roomCode ?? zjhRoom?.roomCode ?? daBanZiRoom?.roomCode ?? fighterRoom?.roomCode;
     if (!code) {
       return;
     }
@@ -1042,7 +1122,7 @@ export default function App() {
     );
   }
 
-  if (activeView === "hall" || (!room && !zjhRoom && !daBanZiRoom)) {
+  if (activeView === "hall" || (!room && !zjhRoom && !daBanZiRoom && !fighterRoom)) {
     return (
       <>
         <GameHall
@@ -1176,6 +1256,46 @@ export default function App() {
         {settingsOpen && (
           <SettingsDialog theme={appTheme} onThemeChange={setAppTheme} onClose={() => setSettingsOpen(false)} />
         )}
+        <Toast message={toast} />
+      </div>
+    );
+  }
+
+  if (activeView === "fighter" && fighterRoom) {
+    return (
+      <div className="fighter-game-shell">
+        <FighterTable
+          room={fighterRoom}
+          connected={connected}
+          notice={fighterEndedNotice}
+          onInput={(input: FighterInputState) => socket.emit("fighter:input", input)}
+          onCopyRoomCode={copyRoomCode}
+          onLeave={requestLeaveRoom}
+          onInfo={setToast}
+          voiceDock={
+            <GameVoiceDock
+              authToken={authToken}
+              gameKind="fighter"
+              roomCode={fighterRoom.roomCode}
+              connected={connected}
+              onInfo={setToast}
+            />
+          }
+        />
+        {leaveConfirmOpen && <LeaveConfirmDialog onCancel={() => setLeaveConfirmOpen(false)} onConfirm={leaveRoom} />}
+        <GameChatDock
+          open={gameChatOpen}
+          unreadCount={gameChatUnreadCount}
+          messages={chatMessages}
+          onlineCount={chatOnlineCount}
+          joined={chatJoined}
+          connected={connected}
+          account={authProfile.account}
+          draft={chatDraft}
+          onDraftChange={setChatDraft}
+          onSend={sendChatMessage}
+          onToggle={toggleGameChat}
+        />
         <Toast message={toast} />
       </div>
     );

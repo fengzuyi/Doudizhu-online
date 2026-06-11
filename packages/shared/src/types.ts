@@ -124,7 +124,7 @@ export interface ChatMessage {
   at: number;
 }
 
-export type GameKind = "doudizhu" | "zha_jin_hua" | "da_ban_zi";
+export type GameKind = "doudizhu" | "zha_jin_hua" | "da_ban_zi" | "fighter";
 
 export interface GameSessionRecord {
   id: string;
@@ -322,6 +322,63 @@ export interface DaBanZiRoomView {
   message?: string;
 }
 
+export type FighterPhase = "lobby" | "countdown" | "fighting" | "ended";
+
+export type FighterFacing = "left" | "right";
+
+export interface FighterInputState {
+  left?: boolean;
+  right?: boolean;
+  jump?: boolean;
+  attack?: boolean;
+}
+
+export interface FighterPlayerView {
+  seat: number;
+  nickname: string;
+  connected: boolean;
+  ready: boolean;
+  hp: number;
+  maxHp: number;
+  score: number;
+  x: number;
+  y: number;
+  facing: FighterFacing;
+  grounded: boolean;
+  attacking: boolean;
+  stunned: boolean;
+  lastAction?: string;
+}
+
+export interface FighterRoundResult {
+  winnerSeat?: number;
+  winnerNickname?: string;
+  reason: string;
+  scores: Record<number, number>;
+  remainingHp: Record<number, number>;
+  durationMs: number;
+}
+
+export interface FighterRoomView {
+  roomCode: string;
+  phase: FighterPhase;
+  playerCount: number;
+  maxPlayers: number;
+  selfSeat?: number;
+  players: FighterPlayerView[];
+  arena: {
+    width: number;
+    height: number;
+    groundY: number;
+  };
+  countdownEndsAt?: number;
+  roundStartedAt?: number;
+  roundEndsAt?: number;
+  serverTime: number;
+  result?: FighterRoundResult;
+  message?: string;
+}
+
 export interface ClientToServerEvents {
   "auth:bind": (payload: { token: string }) => void;
   "room:create": (payload: { nickname: string }) => void;
@@ -351,6 +408,11 @@ export interface ClientToServerEvents {
   "dbz:partner:call": (payload: { rank: Rank; suit: Exclude<Suit, "joker"> }) => void;
   "dbz:play:cards": (payload: { cardIds: string[] }) => void;
   "dbz:play:pass": () => void;
+  "fighter:room:create": (payload: { nickname: string }) => void;
+  "fighter:room:join": (payload: { roomCode: string; nickname: string }) => void;
+  "fighter:room:leave": () => void;
+  "fighter:game:ready": () => void;
+  "fighter:input": (payload: FighterInputState) => void;
 }
 
 export interface ServerToClientEvents {
@@ -366,4 +428,6 @@ export interface ServerToClientEvents {
   "zjh:game:ended": (payload: { result?: ZjhRoundResult; message?: string }) => void;
   "dbz:room:state": (payload: { roomView: DaBanZiRoomView }) => void;
   "dbz:game:ended": (payload: { result?: DaBanZiRoundResult; message?: string }) => void;
+  "fighter:room:state": (payload: { roomView: FighterRoomView }) => void;
+  "fighter:game:ended": (payload: { result?: FighterRoundResult; message?: string }) => void;
 }

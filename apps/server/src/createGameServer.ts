@@ -13,6 +13,8 @@ import { ZjhRoomManager } from "./zjhRoomManager.js";
 import type { ZjhInternalRoom } from "./zjhRoomManager.js";
 import { DaBanZiRoomManager } from "./daBanZiRoomManager.js";
 import type { DaBanZiInternalRoom } from "./daBanZiRoomManager.js";
+import { FighterRoomManager } from "./fighterRoomManager.js";
+import type { FighterInternalRoom } from "./fighterRoomManager.js";
 import {
   createPrismaAdminRepository,
   InMemoryAdminRepository,
@@ -45,6 +47,7 @@ const ADMIN_SESSION_TTL_MS = 12 * 60 * 60_000;
 const VOICE_TOKEN_TTL_SECONDS = 2 * 60 * 60;
 const MAX_GAME_HISTORY_RECORDS = 50;
 const GAME_NAME_BY_KIND: Record<GameKind, string> = {
+  fighter: "火柴人决斗",
   doudizhu: "斗地主",
   zha_jin_hua: "炸金花",
   da_ban_zi: "打板子"
@@ -83,7 +86,7 @@ function numberFromEnv(name: string, fallback: number) {
 }
 
 function normalizeVoiceGameKind(value: unknown): GameKind | undefined {
-  return value === "doudizhu" || value === "zha_jin_hua" || value === "da_ban_zi" ? value : undefined;
+  return value === "doudizhu" || value === "zha_jin_hua" || value === "da_ban_zi" || value === "fighter" ? value : undefined;
 }
 
 function normalizeVoiceRoomCode(value: unknown) {
@@ -135,6 +138,7 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
   const roomManager = new RoomManager();
   const zjhRoomManager = new ZjhRoomManager();
   const daBanZiRoomManager = new DaBanZiRoomManager();
+  const fighterRoomManager = new FighterRoomManager();
   const chatMessages: ChatMessage[] = [];
   const chatSessions = new Map<string, { account: string; nickname: string; token: string }>();
   const socketAuth = new Map<string, { account: string; nickname: string; token: string }>();
@@ -149,6 +153,7 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
   };
   const roomCleanupIntervalMs = numberFromEnv("ROOM_CLEANUP_INTERVAL_MS", 5 * 60_000);
   const reconnectGraceMs = numberFromEnv("RECONNECT_GRACE_MS", 15_000);
+  const fighterTickIntervalMs = numberFromEnv("FIGHTER_TICK_INTERVAL_MS", 50);
   const pendingGameDisconnects = new Map<
     string,
     {
@@ -555,10 +560,15 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
     return `dbz:${roomCode}`;
   }
 
+  function fighterSocketRoom(roomCode: string) {
+    return `fighter:${roomCode}`;
+  }
+
   type GameRoomLookup =
     | { gameKind: "doudizhu"; room: InternalRoom }
     | { gameKind: "zha_jin_hua"; room: ZjhInternalRoom }
-    | { gameKind: "da_ban_zi"; room: DaBanZiInternalRoom };
+    | { gameKind: "da_ban_zi"; room: DaBanZiInternalRoom }
+    | { gameKind: "fighter"; room: FighterInternalRoom };
 
   function findCurrentGameRoom(socketId: string): GameRoomLookup | undefined {
     const room = roomManager.getRoomForSocket(socketId);
@@ -576,6 +586,11 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       return { gameKind: "da_ban_zi", room: daBanZiRoom };
     }
 
+    const fighterRoom = fighterRoomManager.getRoomForSocket(socketId);
+    if (fighterRoom) {
+      return { gameKind: "fighter", room: fighterRoom };
+    }
+
     return undefined;
   }
 
@@ -584,6 +599,7 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
     const doudizhuRoom = roomManager.getRoom(roomCode);
     const zjhRoom = zjhRoomManager.getRoom(roomCode);
     const daBanZiRoom = daBanZiRoomManager.getRoom(roomCode);
+    const fighterRoom = fighterRoomManager.getRoom(roomCode);
 
     if (doudizhuRoom) {
       rooms.push({ gameKind: "doudizhu", room: doudizhuRoom });
@@ -593,6 +609,9 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
     }
     if (daBanZiRoom) {
       rooms.push({ gameKind: "da_ban_zi", room: daBanZiRoom });
+    }
+    if (fighterRoom) {
+      rooms.push({ gameKind: "fighter", room: fighterRoom });
     }
 
     return rooms;
@@ -608,8 +627,10 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       clientSocket.join(target.room.roomCode);
     } else if (target.gameKind === "zha_jin_hua") {
       clientSocket.join(zjhSocketRoom(target.room.roomCode));
-    } else {
+    } else if (target.gameKind === "da_ban_zi") {
       clientSocket.join(dbzSocketRoom(target.room.roomCode));
+    } else {
+      clientSocket.join(fighterSocketRoom(target.room.roomCode));
     }
   }
 
@@ -618,8 +639,10 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       emitRoom(target.room);
     } else if (target.gameKind === "zha_jin_hua") {
       emitZjhRoom(target.room);
-    } else {
+    } else if (target.gameKind === "da_ban_zi") {
       emitDaBanZiRoom(target.room);
+    } else {
+      emitFighterRoom(target.room);
     }
   }
 
@@ -672,10 +695,18 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       return;
     }
 
-    const room = daBanZiRoomManager.joinRoom(socketId, requestedRoomCode, auth.nickname);
-    joinSocketTransportRoom(socketId, { gameKind: "da_ban_zi", room });
-    logger.info("dbz.room.joined", { gameKind: target.gameKind, roomCode: room.roomCode, socketId, account: auth.account, nickname: auth.nickname });
-    emitDaBanZiRoom(room);
+    if (target.gameKind === "da_ban_zi") {
+      const room = daBanZiRoomManager.joinRoom(socketId, requestedRoomCode, auth.nickname);
+      joinSocketTransportRoom(socketId, { gameKind: "da_ban_zi", room });
+      logger.info("dbz.room.joined", { gameKind: target.gameKind, roomCode: room.roomCode, socketId, account: auth.account, nickname: auth.nickname });
+      emitDaBanZiRoom(room);
+      return;
+    }
+
+    const room = fighterRoomManager.joinRoom(socketId, requestedRoomCode, auth.nickname);
+    joinSocketTransportRoom(socketId, { gameKind: "fighter", room });
+    logger.info("fighter.room.joined", { gameKind: target.gameKind, roomCode: room.roomCode, socketId, account: auth.account, nickname: auth.nickname });
+    emitFighterRoom(room);
   }
 
   function hasAccountInGameRoom(account: string, gameKind: GameKind, roomCode: string) {
@@ -693,6 +724,10 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       }
 
       if (gameKind === "da_ban_zi" && daBanZiRoomManager.getRoomForSocket(socketId)?.roomCode === roomCode) {
+        return true;
+      }
+
+      if (gameKind === "fighter" && fighterRoomManager.getRoomForSocket(socketId)?.roomCode === roomCode) {
         return true;
       }
     }
@@ -818,11 +853,36 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
     });
   }
 
+  async function recordFighterExit(socketId: string, room: FighterInternalRoom | undefined, reason: string, sessionOverride?: SocketSession) {
+    const session = getSessionForRecord(socketId, sessionOverride);
+    const player = room?.players.find((candidate) => candidate?.socketId === socketId);
+    if (!session || !room || !player) {
+      return;
+    }
+
+    await persistGameSession({
+      account: session.account,
+      nickname: player.nickname || session.nickname,
+      gameKind: "fighter",
+      gameName: GAME_NAME_BY_KIND.fighter,
+      roomCode: room.roomCode,
+      seat: player.seat,
+      enteredAt: player.joinedAt ?? room.createdAt,
+      leftAt: Date.now(),
+      finalScore: player.score,
+      scoreLabel: `${player.score} 胜点`,
+      resultLabel: room.result?.winnerNickname ? `${room.result.winnerNickname} 获胜` : room.result?.reason ?? room.message ?? getRoomPhaseLabel(room.phase),
+      leaveReason: reason,
+      phase: room.phase
+    });
+  }
+
   async function recordSocketGameExits(socketId: string, reason: string, sessionOverride?: SocketSession) {
     await Promise.all([
       recordDoudizhuExit(socketId, roomManager.getRoomForSocket(socketId), reason, sessionOverride),
       recordZjhExit(socketId, zjhRoomManager.getRoomForSocket(socketId), reason, sessionOverride),
-      recordDaBanZiExit(socketId, daBanZiRoomManager.getRoomForSocket(socketId), reason, sessionOverride)
+      recordDaBanZiExit(socketId, daBanZiRoomManager.getRoomForSocket(socketId), reason, sessionOverride),
+      recordFighterExit(socketId, fighterRoomManager.getRoomForSocket(socketId), reason, sessionOverride)
     ]);
   }
 
@@ -833,6 +893,16 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
 
     for (const { socketId, roomView } of daBanZiRoomManager.buildViews(room)) {
       io.to(socketId).emit("dbz:room:state", { roomView });
+    }
+  }
+
+  function emitFighterRoom(room: FighterInternalRoom | undefined) {
+    if (!room) {
+      return;
+    }
+
+    for (const { socketId, roomView } of fighterRoomManager.buildViews(room)) {
+      io.to(socketId).emit("fighter:room:state", { roomView });
     }
   }
 
@@ -902,6 +972,14 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       transferred = true;
     }
 
+    const fighterRoom = fighterRoomManager.reassignSocket(oldSocketId, newSocketId);
+    if (fighterRoom) {
+      io.sockets.sockets.get(oldSocketId)?.leave(fighterSocketRoom(fighterRoom.roomCode));
+      io.sockets.sockets.get(newSocketId)?.join(fighterSocketRoom(fighterRoom.roomCode));
+      emitFighterRoom(fighterRoom);
+      transferred = true;
+    }
+
     return transferred;
   }
 
@@ -910,6 +988,7 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
     const room = roomManager.disconnect(socketId);
     const zjhRoom = zjhRoomManager.disconnect(socketId);
     const dbzRoom = daBanZiRoomManager.disconnect(socketId);
+    const fighterRoom = fighterRoomManager.disconnect(socketId);
 
     emitRoom(room);
     if (room?.phase === "ended" && room.message) {
@@ -926,14 +1005,23 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       io.to(dbzSocketRoom(dbzRoom.roomCode)).emit("dbz:game:ended", { result: dbzRoom.result, message: dbzRoom.message });
     }
 
-    return { room, zjhRoom, dbzRoom };
+    emitFighterRoom(fighterRoom);
+    if (fighterRoom?.phase === "ended") {
+      io.to(fighterSocketRoom(fighterRoom.roomCode)).emit("fighter:game:ended", {
+        result: fighterRoom.result,
+        message: fighterRoom.message
+      });
+    }
+
+    return { room, zjhRoom, dbzRoom, fighterRoom };
   }
 
   function scheduleGameDisconnect(socketId: string, session: { account: string; nickname: string; token: string }) {
     const hasGameRoom =
       Boolean(roomManager.getRoomForSocket(socketId)) ||
       Boolean(zjhRoomManager.getRoomForSocket(socketId)) ||
-      Boolean(daBanZiRoomManager.getRoomForSocket(socketId));
+      Boolean(daBanZiRoomManager.getRoomForSocket(socketId)) ||
+      Boolean(fighterRoomManager.getRoomForSocket(socketId));
 
     if (!hasGameRoom) {
       return false;
@@ -954,7 +1042,8 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
         account: session.account,
         roomCode: disconnected.room?.roomCode,
         zjhRoomCode: disconnected.zjhRoom?.roomCode,
-        dbzRoomCode: disconnected.dbzRoom?.roomCode
+        dbzRoomCode: disconnected.dbzRoom?.roomCode,
+        fighterRoomCode: disconnected.fighterRoom?.roomCode
       });
     }, reconnectGraceMs);
     timer.unref();
@@ -1042,6 +1131,20 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
         });
       }
     }
+
+    const fighterRoom = fighterRoomManager.getRoomForSocket(socketId);
+    if (fighterRoom) {
+      void recordFighterExit(socketId, fighterRoom, "账号下线");
+      io.sockets.sockets.get(socketId)?.leave(fighterSocketRoom(fighterRoom.roomCode));
+      const updatedRoom = fighterRoomManager.leaveRoom(socketId);
+      emitFighterRoom(updatedRoom);
+      if (updatedRoom?.phase === "ended") {
+        io.to(fighterSocketRoom(updatedRoom.roomCode)).emit("fighter:game:ended", {
+          result: updatedRoom.result,
+          message: updatedRoom.message
+        });
+      }
+    }
   }
 
   function replaceAccountSessions(account: string, currentSocketId: string) {
@@ -1094,6 +1197,22 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       roomCleanupIntervalMs,
       cleanupOptions
     });
+
+    const fighterTickTimer = setInterval(() => {
+      const rooms = fighterRoomManager.stepAll(Date.now());
+      for (const room of rooms) {
+        emitFighterRoom(room);
+        if (room.phase === "ended" && room.result) {
+          io.to(fighterSocketRoom(room.roomCode)).emit("fighter:game:ended", {
+            result: room.result,
+            message: room.message
+          });
+        }
+      }
+    }, fighterTickIntervalMs);
+    fighterTickTimer.unref();
+    httpServer.on("close", () => clearInterval(fighterTickTimer));
+    logger.info("fighter.tick.started", { fighterTickIntervalMs });
   }
 
   httpServer.on("close", () => {
@@ -1578,6 +1697,85 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       }
     });
 
+    socket.on("fighter:room:create", () => {
+      try {
+        const auth = requireSocketAuth(socket.id);
+        const room = fighterRoomManager.createRoom(socket.id, auth.nickname);
+        socket.join(fighterSocketRoom(room.roomCode));
+        logger.info("fighter.room.created", { roomCode: room.roomCode, socketId: socket.id, account: auth.account, nickname: auth.nickname });
+        emitFighterRoom(room);
+      } catch (error) {
+        handleError(socket.id, error);
+      }
+    });
+
+    socket.on("fighter:room:join", (payload) => {
+      try {
+        const auth = requireSocketAuth(socket.id);
+        const requestedRoomCode = payload.roomCode.trim().toUpperCase();
+        const currentRoom = fighterRoomManager.getRoomForSocket(socket.id);
+        if (currentRoom) {
+          if (currentRoom.roomCode !== requestedRoomCode) {
+            throw new GameException("ALREADY_IN_ROOM", "你已经在一个火柴人决斗房间里。");
+          }
+
+          socket.join(fighterSocketRoom(currentRoom.roomCode));
+          logger.info("fighter.room.rejoined", { roomCode: currentRoom.roomCode, socketId: socket.id, account: auth.account, nickname: auth.nickname });
+          emitFighterRoom(currentRoom);
+          return;
+        }
+
+        const room = fighterRoomManager.joinRoom(socket.id, payload.roomCode, auth.nickname);
+        socket.join(fighterSocketRoom(room.roomCode));
+        logger.info("fighter.room.joined", { roomCode: room.roomCode, socketId: socket.id, account: auth.account, nickname: auth.nickname });
+        emitFighterRoom(room);
+      } catch (error) {
+        handleError(socket.id, error);
+      }
+    });
+
+    socket.on("fighter:room:leave", async () => {
+      try {
+        const room = fighterRoomManager.getRoomForSocket(socket.id);
+        if (room) {
+          await recordFighterExit(socket.id, room, "主动离场");
+          socket.leave(fighterSocketRoom(room.roomCode));
+        }
+        const updatedRoom = fighterRoomManager.leaveRoom(socket.id);
+        logger.info("fighter.room.left", { roomCode: room?.roomCode, socketId: socket.id });
+        emitFighterRoom(updatedRoom);
+        if (updatedRoom?.phase === "ended") {
+          io.to(fighterSocketRoom(updatedRoom.roomCode)).emit("fighter:game:ended", {
+            result: updatedRoom.result,
+            message: updatedRoom.message
+          });
+        }
+      } catch (error) {
+        handleError(socket.id, error);
+      }
+    });
+
+    socket.on("fighter:game:ready", () => {
+      try {
+        requireSocketAuth(socket.id);
+        const room = fighterRoomManager.ready(socket.id);
+        logger.info("fighter.game.ready", { roomCode: room.roomCode, socketId: socket.id, phase: room.phase });
+        emitFighterRoom(room);
+      } catch (error) {
+        handleError(socket.id, error);
+      }
+    });
+
+    socket.on("fighter:input", (payload) => {
+      try {
+        requireSocketAuth(socket.id);
+        const room = fighterRoomManager.updateInput(socket.id, payload);
+        emitFighterRoom(room);
+      } catch (error) {
+        handleError(socket.id, error);
+      }
+    });
+
     socket.on("disconnect", () => {
       const session = socketAuth.get(socket.id);
       leaveChat(socket.id);
@@ -1592,12 +1790,15 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
       }
 
       socketAuth.delete(socket.id);
-      const { room, zjhRoom, dbzRoom } = finalizeSocketGameDisconnect(socket.id, session);
+      const { room, zjhRoom, dbzRoom, fighterRoom } = finalizeSocketGameDisconnect(socket.id, session);
       if (zjhRoom) {
         socket.leave(zjhSocketRoom(zjhRoom.roomCode));
       }
       if (dbzRoom) {
         socket.leave(dbzSocketRoom(dbzRoom.roomCode));
+      }
+      if (fighterRoom) {
+        socket.leave(fighterSocketRoom(fighterRoom.roomCode));
       }
       logger.info("socket.disconnected", {
         socketId: socket.id,
@@ -1606,10 +1807,23 @@ export function createGameServerWithOptions(options: GameServerOptions = {}) {
         zjhRoomCode: zjhRoom?.roomCode,
         zjhPhase: zjhRoom?.phase,
         dbzRoomCode: dbzRoom?.roomCode,
-        dbzPhase: dbzRoom?.phase
+        dbzPhase: dbzRoom?.phase,
+        fighterRoomCode: fighterRoom?.roomCode,
+        fighterPhase: fighterRoom?.phase
       });
     });
   });
 
-  return { app, httpServer, io, roomManager, zjhRoomManager, daBanZiRoomManager, authManager, logger, runMaintenance };
+  return {
+    app,
+    httpServer,
+    io,
+    roomManager,
+    zjhRoomManager,
+    daBanZiRoomManager,
+    fighterRoomManager,
+    authManager,
+    logger,
+    runMaintenance
+  };
 }

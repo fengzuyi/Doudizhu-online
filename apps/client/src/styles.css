@@ -7215,7 +7215,6 @@ button.zjh-avatar-frame:disabled {
   }
 }
 
-
 /* ===== 全局设置弹窗(皮肤切换) ===== */
 
 .app-settings-dialog {
@@ -7381,4 +7380,515 @@ button.zjh-avatar-frame:disabled {
   color: #8a9590;
   font-size: 13px;
   font-weight: 600;
+}
+
+.friends-game-page-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.friends-game-page-actions button,
+.friends-game-page-dots button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid rgba(139, 178, 217, 0.28);
+  border-radius: 8px;
+  background: rgba(5, 16, 31, 0.48);
+  color: #f4fbff;
+  cursor: pointer;
+}
+
+.friends-game-page-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.friends-game-pages {
+  display: flex;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+
+.friends-game-pages::-webkit-scrollbar {
+  display: none;
+}
+
+.friends-game-page {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+}
+
+.friends-game-page .friends-game-grid {
+  min-height: 100%;
+}
+
+.friends-game-page-dots {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding-top: 10px;
+}
+
+.friends-game-page-dots button {
+  min-width: 44px;
+  width: 44px;
+  min-height: 18px;
+  height: 18px;
+  border-radius: 999px;
+  padding: 0;
+}
+
+.friends-game-page-dots button.active {
+  background: #6fffe3;
+  border-color: #6fffe3;
+}
+
+.friends-game-grid-legacy {
+  display: none !important;
+}
+
+.friends-game-card.game-fighter {
+  --game-card-bg: linear-gradient(180deg, #ffffff 0 58%, #050505 58% 100%);
+  color: #101010;
+}
+
+.friends-game-card.game-fighter h4 {
+  color: #ffffff;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55);
+}
+
+.friends-game-card.game-fighter button {
+  background: #0a0a0a;
+  color: #ffffff;
+}
+
+.fighter-game-shell {
+  height: 100dvh;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: #f5f5f2;
+  color: #111111;
+}
+
+.fighter-header {
+  position: relative;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 18px;
+  border-bottom: 2px solid #111111;
+  background: #ffffff;
+}
+
+.fighter-header-left,
+.fighter-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.fighter-brand {
+  font-size: 20px;
+  font-weight: 900;
+  color: #111111;
+}
+
+.fighter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid #111111;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111111;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.fighter-pill.room button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 6px;
+  background: #111111;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.fighter-pill.timer {
+  min-width: 64px;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.fighter-main {
+  width: min(1180px, 100%);
+  min-height: 0;
+  height: 100%;
+  margin: 0 auto;
+  padding: 10px 18px 14px;
+  overflow: hidden;
+}
+
+.fighter-stage-wrap {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
+}
+
+.fighter-hud {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 12px;
+}
+
+.fighter-status,
+.fighter-round-status {
+  min-height: 60px;
+  border: 2px solid #111111;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111111;
+}
+
+.fighter-status {
+  display: grid;
+  gap: 8px;
+  padding: 8px 12px;
+}
+
+.fighter-status.right {
+  text-align: right;
+}
+
+.fighter-status strong {
+  display: block;
+  font-size: 17px;
+  line-height: 1.2;
+}
+
+.fighter-status span,
+.fighter-round-status span {
+  color: #4b5563;
+  font-size: 13px;
+}
+
+.fighter-health {
+  position: relative;
+  height: 16px;
+  overflow: hidden;
+  border: 2px solid #111111;
+  border-radius: 999px;
+  background: #ffffff;
+}
+
+.fighter-health span {
+  display: block;
+  width: var(--fighter-hp);
+  height: 100%;
+  background: #111111;
+  transition: width 140ms ease-out;
+}
+
+.fighter-round-status {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  min-width: 180px;
+  padding: 10px 14px;
+  text-align: center;
+}
+
+.fighter-round-status strong {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.fighter-stage {
+  position: relative;
+  width: auto;
+  max-width: 100%;
+  height: 100%;
+  min-height: 0;
+  aspect-ratio: 16 / 9;
+  justify-self: center;
+  overflow: hidden;
+  border: 3px solid #111111;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.fighter-ground {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 22.222%;
+  background: #050505;
+}
+
+.fighter-sprite {
+  position: absolute;
+  left: var(--fighter-x);
+  top: var(--fighter-y);
+  z-index: 3;
+  width: clamp(260px, 31vw, 390px);
+  height: clamp(190px, 23vw, 284px);
+  transform: translate(-50%, -100%) scaleX(var(--fighter-direction));
+  transform-origin: 50% 100%;
+  transition: filter 120ms ease-out;
+  pointer-events: none;
+}
+
+.fighter-sprite-image {
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: 50% 100%;
+  filter: brightness(0);
+  transform: translateX(-50%);
+  user-select: none;
+}
+
+.fighter-hit-flash {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  width: clamp(96px, 12vw, 154px);
+  height: auto;
+  filter: none;
+  opacity: 0.9;
+  transform: translate(-50%, -50%) scaleX(var(--fighter-direction));
+  user-select: none;
+}
+
+.fighter-name {
+  position: absolute;
+  left: 50%;
+  bottom: -28px;
+  transform: translateX(-50%) scaleX(var(--fighter-direction));
+  min-width: 88px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #111111;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.fighter-sprite.stunned {
+  filter: drop-shadow(0 0 0 #111111);
+  animation: fighterHitShake 160ms linear infinite;
+}
+
+@keyframes fighterHitShake {
+  0%,
+  100% {
+    margin-left: 0;
+  }
+
+  50% {
+    margin-left: 5px;
+  }
+}
+
+.fighter-action-bar {
+  display: none;
+}
+
+.fighter-action-bar button {
+  min-width: 150px;
+}
+
+.fighter-touch-controls {
+  display: none;
+}
+
+.fighter-move-controls,
+.fighter-skill-controls {
+  display: flex;
+  gap: 10px;
+}
+
+.fighter-touch-controls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border: 2px solid #111111;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111111;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.fighter-touch-controls button:active {
+  background: #111111;
+  color: #ffffff;
+}
+
+.fighter-touch-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.fighter-result-dialog {
+  color: #111111;
+}
+
+.fighter-result-dialog .primary-btn {
+  display: none;
+}
+
+.fighter-result-list {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
+.fighter-result-list p {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid rgba(17, 17, 17, 0.18);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fighter-sprite,
+  .fighter-health span {
+    transition: none;
+  }
+
+  .fighter-sprite.stunned {
+    animation: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .fighter-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .fighter-main {
+    padding: 12px;
+  }
+
+  .fighter-hud {
+    grid-template-columns: 1fr;
+  }
+
+  .fighter-round-status {
+    order: -1;
+    min-width: 0;
+  }
+
+  .fighter-sprite {
+    width: clamp(210px, 58vw, 300px);
+    height: clamp(154px, 42vw, 218px);
+  }
+}
+
+@media (max-width: 640px) {
+  .friends-game-page-actions {
+    justify-content: center;
+  }
+
+  .fighter-touch-controls {
+    gap: 10px;
+  }
+
+  .fighter-touch-controls button {
+    width: 52px;
+    height: 52px;
+  }
+
+  .fighter-pill {
+    font-size: 13px;
+  }
+}
+
+.friends-center-panel {
+  position: relative;
+}
+
+.friends-game-page-actions {
+  position: absolute;
+  top: 50%;
+  left: -72px;
+  right: -72px;
+  z-index: 25;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.friends-game-page-actions button {
+  pointer-events: auto;
+  width: 56px;
+  height: 56px;
+  min-width: 56px;
+  min-height: 56px;
+  border-radius: 8px;
+  border-color: rgba(139, 178, 217, 0.22);
+  background: rgba(7, 20, 37, 0.68);
+  color: #eaf7ff;
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(10px);
+}
+
+.friends-game-page-actions button:not(:disabled):hover {
+  background: rgba(19, 213, 195, 0.18);
+  color: #a8fff0;
+}
+
+.friends-game-page-actions button:disabled {
+  opacity: 0.34;
+}
+
+@media (max-width: 640px) {
+  .friends-game-page-actions {
+    left: -14px;
+    right: -14px;
+  }
+
+  .friends-game-page-actions button {
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    min-height: 48px;
+  }
 }

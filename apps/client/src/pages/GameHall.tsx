@@ -1,5 +1,7 @@
 import {
   Bell,
+  ChevronLeft,
+  ChevronRight,
   History,
   KeyRound,
   LogOut,
@@ -10,7 +12,7 @@ import {
   Sparkles,
   UserRound
 } from "lucide-react";
-import { type FormEvent, useEffect, useRef } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import type { ChatMessage, GameKind, GameSessionRecord } from "@doudizhu/shared";
 import type { AuthProfile } from "./LoginPage.js";
 
@@ -43,7 +45,15 @@ interface GameHallProps {
   onRefreshGameRecords: () => void;
 }
 
-const games = [
+type HallGameKind = GameKind | "mahjong";
+
+interface HallGame {
+  kind: HallGameKind;
+  name: string;
+  action: string;
+}
+
+const games: HallGame[] = [
   {
     kind: "da_ban_zi" as const,
     name: "打板子",
@@ -66,7 +76,18 @@ const games = [
   }
 ];
 
+const nextPageGames: HallGame[] = [
+  {
+    kind: "fighter",
+    name: "火柴人决斗",
+    action: "选择"
+  }
+];
+
+const gamePages = [games, nextPageGames];
+
 const selectedGameName: Record<GameKind, string> = {
+  fighter: "火柴人决斗",
   doudizhu: "斗地主",
   zha_jin_hua: "炸金花",
   da_ban_zi: "打板子"
@@ -101,6 +122,8 @@ export function GameHall({
   onRefreshGameRecords
 }: GameHallProps) {
   const messagesRef = useRef<HTMLDivElement | null>(null);
+  const gamePagerRef = useRef<HTMLDivElement | null>(null);
+  const [gamePage, setGamePage] = useState(0);
   const currentGameName = selectedGameName[selectedGame];
 
   useEffect(() => {
@@ -124,6 +147,23 @@ export function GameHall({
   function handleChatSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     onSendChat();
+  }
+
+  function goToGamePage(page: number) {
+    const nextPage = Math.min(gamePages.length - 1, Math.max(0, page));
+    setGamePage(nextPage);
+    const node = gamePagerRef.current;
+    if (node) {
+      node.scrollTo({ left: node.clientWidth * nextPage, behavior: "smooth" });
+    }
+  }
+
+  function handleGamePagerScroll() {
+    const node = gamePagerRef.current;
+    if (!node || node.clientWidth <= 0) {
+      return;
+    }
+    setGamePage(Math.round(node.scrollLeft / node.clientWidth));
   }
 
   return (
@@ -272,7 +312,58 @@ export function GameHall({
               <span>{currentGameName} · 好友房模式</span>
             </div>
 
-            <div className="friends-game-grid">
+            <div className="friends-game-page-actions" aria-label="游戏分页">
+              <button type="button" onClick={() => goToGamePage(gamePage - 1)} disabled={gamePage === 0} aria-label="上一页">
+                <ChevronLeft size={18} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={() => goToGamePage(gamePage + 1)}
+                disabled={gamePage >= gamePages.length - 1}
+                aria-label="下一页"
+              >
+                <ChevronRight size={18} aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="friends-game-pages" ref={gamePagerRef} onScroll={handleGamePagerScroll}>
+              {gamePages.map((pageGames, pageIndex) => (
+                <div className="friends-game-page" key={pageIndex} aria-label={`游戏第 ${pageIndex + 1} 页`}>
+                  <div className="friends-game-grid">
+                    {pageGames.map((game) => {
+                      const selected = game.kind === selectedGame;
+                      const available =
+                        game.kind === "doudizhu" ||
+                        game.kind === "zha_jin_hua" ||
+                        game.kind === "da_ban_zi" ||
+                        game.kind === "fighter";
+                      return (
+                        <article className={`friends-game-card game-${game.kind} ${selected ? "selected" : ""}`} key={game.name}>
+                          <h4>{game.name}</h4>
+                          <button type="button" onClick={available ? () => onGameSelect(game.kind as GameKind) : () => onUnavailable(game.name)}>
+                            {selected ? "已选择" : game.action}
+                          </button>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="friends-game-page-dots" aria-label="游戏分页位置">
+              {gamePages.map((_, pageIndex) => (
+                <button
+                  className={pageIndex === gamePage ? "active" : ""}
+                  type="button"
+                  key={pageIndex}
+                  onClick={() => goToGamePage(pageIndex)}
+                  aria-label={`跳转到第 ${pageIndex + 1} 页`}
+                  aria-current={pageIndex === gamePage ? "page" : undefined}
+                />
+              ))}
+            </div>
+
+            <div className="friends-game-grid friends-game-grid-legacy">
               {games.map((game) => {
                 const selected = game.kind === selectedGame;
                 return (
@@ -282,7 +373,7 @@ export function GameHall({
                       type="button"
                       onClick={
                         game.kind === "doudizhu" || game.kind === "zha_jin_hua" || game.kind === "da_ban_zi"
-                          ? () => onGameSelect(game.kind)
+                          ? () => onGameSelect(game.kind as GameKind)
                           : () => onUnavailable(game.name)
                       }
                     >

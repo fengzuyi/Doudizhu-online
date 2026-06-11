@@ -145,5 +145,5 @@ function toGameSessionRecord(record: PrismaGameSessionRecordLike): GameSessionRe
 }
 
 function toGameKind(value: string): GameKind {
-  return value === "zha_jin_hua" || value === "da_ban_zi" ? value : "doudizhu";
+  return value === "zha_jin_hua" || value === "da_ban_zi" || value === "fighter" ? value : "doudizhu";
 }
